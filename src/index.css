@@ -1,0 +1,259 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
+
+/* ============================================
+   MYXELLIA — MIDNIGHT LUXE DESIGN SYSTEM
+   ============================================ */
+
+:root {
+  /* Color Tokens */
+  --color-obsidian: #0A0A0B;
+  --color-frosted-zinc: #1F1F23;
+  --color-kinetic-neon: #39FF14;
+  --color-champagne-gold: #C6A664;
+  --color-pure-ice: #F5F7FA;
+  --color-ghost-gray: #94A3B8;
+
+  /* Glassmorphism Tokens */
+  --glass-bg: rgba(31, 31, 35, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --glass-inner-glow: inset 0 1px 1px rgba(255, 255, 255, 0.06);
+  --glass-blur: saturate(180%) blur(24px);
+  --glass-blur-heavy: saturate(200%) blur(32px);
+
+  /* Motion Tokens */
+  --ease-cinematic: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-panel: 450ms;
+  --duration-hover: 200ms;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    height: 100%;
+  }
+
+  body,
+  #root {
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: var(--color-obsidian);
+    color: var(--color-pure-ice);
+    font-family: 'Inter Tight', system-ui, sans-serif;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: var(--color-champagne-gold);
+    color: var(--color-obsidian);
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 2px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.22);
+  }
+}
+
+@layer utilities {
+
+  /* ---- Typography ---- */
+  .font-serif-display {
+    font-family: 'Instrument Serif', Georgia, serif;
+  }
+
+  .font-ui {
+    font-family: 'Inter Tight', system-ui, sans-serif;
+  }
+
+  /* ---- Glassmorphism ---- */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-inner-glow);
+  }
+
+  .glass-heavy {
+    background: rgba(15, 15, 18, 0.55);
+    backdrop-filter: var(--glass-blur-heavy);
+    -webkit-backdrop-filter: var(--glass-blur-heavy);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-inner-glow), 0 24px 48px rgba(0, 0, 0, 0.5);
+  }
+
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-inner-glow), 0 32px 64px rgba(0, 0, 0, 0.6);
+    border-radius: 16px;
+  }
+
+  /* ---- Neon / Status Glows ---- */
+  .glow-neon {
+    box-shadow: 0 0 12px rgba(57, 255, 20, 0.4), 0 0 32px rgba(57, 255, 20, 0.15);
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 12px rgba(198, 166, 100, 0.35), 0 0 32px rgba(198, 166, 100, 0.12);
+  }
+
+  .glow-orange {
+    box-shadow: 0 0 12px rgba(249, 115, 22, 0.45), 0 0 32px rgba(249, 115, 22, 0.18);
+  }
+
+  .glow-red {
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.4), 0 0 32px rgba(239, 68, 68, 0.15);
+  }
+
+  /* ---- Text Colors ---- */
+  .text-ice {
+    color: var(--color-pure-ice);
+  }
+
+  .text-ghost {
+    color: var(--color-ghost-gray);
+  }
+
+  .text-neon {
+    color: var(--color-kinetic-neon);
+  }
+
+  .text-gold {
+    color: var(--color-champagne-gold);
+  }
+
+  /* ---- Border Colors ---- */
+  .border-neon {
+    border-color: var(--color-kinetic-neon);
+  }
+
+  .border-gold {
+    border-color: var(--color-champagne-gold);
+  }
+
+  /* ---- Cinematic Transitions ---- */
+  .transition-cinematic {
+    transition: all var(--duration-panel) var(--ease-cinematic);
+  }
+
+  .transition-hover {
+    transition: all var(--duration-hover) var(--ease-cinematic);
+  }
+
+  /* ---- Gold Accent Line ---- */
+  .gold-line {
+    border-color: var(--color-champagne-gold);
+    opacity: 0.4;
+  }
+
+  /* ---- Status Indicators ---- */
+  .status-available {
+    background-color: var(--color-kinetic-neon);
+    box-shadow: 0 0 8px rgba(57, 255, 20, 0.7);
+  }
+
+  .status-pending {
+    background-color: #F97316;
+    box-shadow: 0 0 8px rgba(249, 115, 22, 0.7);
+  }
+
+  .status-sold {
+    background-color: #EF4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
+  }
+
+  /* ---- Keyframes ---- */
+  @keyframes pulse-neon {
+
+    0%,
+    100% {
+      opacity: 1;
+      box-shadow: 0 0 8px rgba(57, 255, 20, 0.7);
+    }
+
+    50% {
+      opacity: 0.6;
+      box-shadow: 0 0 20px rgba(57, 255, 20, 0.3);
+    }
+  }
+
+  @keyframes pulse-orange {
+
+    0%,
+    100% {
+      opacity: 1;
+      box-shadow: 0 0 8px rgba(249, 115, 22, 0.7);
+    }
+
+    50% {
+      opacity: 0.5;
+      box-shadow: 0 0 20px rgba(249, 115, 22, 0.25);
+    }
+  }
+
+  @keyframes float-up {
+
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% center;
+    }
+
+    100% {
+      background-position: 200% center;
+    }
+  }
+
+  .animate-pulse-neon {
+    animation: pulse-neon 1.8s ease-in-out infinite;
+  }
+
+  .animate-pulse-orange {
+    animation: pulse-orange 1.4s ease-in-out infinite;
+  }
+
+  .animate-float {
+    animation: float-up 3s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.06) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2.5s linear infinite;
+  }
+}
