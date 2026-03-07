@@ -6,29 +6,12 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { useEngineStore } from '../store/engine.store';
 import { ErrorBoundary } from 'react-error-boundary';
 import { getGroundColor } from '../lib/groundColor';
+import UnitBox, { type UnitMesh } from './UnitBox';
 import type { Database } from '../lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
 type DisplayUnit = { id: string; position: [number, number, number]; size: [number, number, number] };
 
-/* ──────────────────────────────────────────────
-   Status → Color mapping (Midnight Luxe palette)
-   ────────────────────────────────────────────── */
-const STATUS_COLOR: Record<string, string> = {
-    available: '#39FF14',
-    pending: '#F97316',
-    sold: '#EF4444',
-};
-
-const STATUS_EMISSIVE: Record<string, string> = {
-    available: '#1A6600',
-    pending: '#7A3800',
-    sold: '#6A0000',
-};
-
-interface UnitMesh { id: string; position: [number, number, number]; size: [number, number, number] }
-
-/* Fallback units if none are defined in DB */
 const FALLBACK_UNITS: UnitMesh[] = [
     { id: 'u-101', position: [-3, 1, 0], size: [2.8, 1.8, 2.8] },
     { id: 'u-102', position: [3, 1, 0], size: [2.8, 1.8, 2.8] },
@@ -71,71 +54,6 @@ export function ModelLoader({ url, extension }: { url: string; extension?: strin
         }>
             <Model url={url} extension={extension} />
         </ErrorBoundary>
-    );
-}
-
-function UnitBox({ unit }: { unit: UnitMesh }) {
-    const meshRef = useRef<THREE.Mesh>(null!);
-    const { selectedUnit, hoveredUnit, unitStatuses, setSelectedUnit, setHoveredUnit, setViewMode } = useEngineStore();
-    const clickCountRef = useRef(0);
-    const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const status = unitStatuses[unit.id] ?? 'available';
-    const isHovered = hoveredUnit === unit.id;
-    const isSelected = selectedUnit === unit.id;
-
-    const baseColor = useMemo(() => new THREE.Color(STATUS_COLOR[status]), [status]);
-    const emissiveColor = useMemo(() => new THREE.Color(STATUS_EMISSIVE[status]), [status]);
-
-    useFrame(({ clock }) => {
-        if (!meshRef.current) return;
-        const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-        if (status === 'pending') {
-            const pulse = Math.sin(clock.elapsedTime * 3) * 0.5 + 0.5;
-            mat.emissiveIntensity = 0.3 + pulse * 0.5;
-        } else if (isHovered || isSelected) {
-            mat.emissiveIntensity = 0.6;
-        } else {
-            mat.emissiveIntensity = 0.18;
-        }
-    });
-
-    const handleClick = () => {
-        clickCountRef.current += 1;
-        if (clickCountRef.current === 1) {
-            setSelectedUnit(unit.id);
-            clickTimerRef.current = setTimeout(() => { clickCountRef.current = 0; }, 350);
-        } else if (clickCountRef.current >= 2) {
-            if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-            clickCountRef.current = 0;
-            setViewMode('interior');
-        }
-    };
-
-    const scale = isSelected ? 1.05 : isHovered ? 1.03 : 1;
-
-    return (
-        <mesh
-            ref={meshRef}
-            position={unit.position}
-            scale={[scale, scale, scale]}
-            onClick={handleClick}
-            onPointerOver={(e) => { e.stopPropagation(); setHoveredUnit(unit.id); document.body.style.cursor = 'pointer'; }}
-            onPointerOut={() => { setHoveredUnit(null); document.body.style.cursor = 'auto'; }}
-            castShadow
-            receiveShadow
-        >
-            <boxGeometry args={unit.size} />
-            <meshStandardMaterial
-                color={isSelected ? '#FFFFFF' : baseColor}
-                emissive={emissiveColor}
-                emissiveIntensity={0.2}
-                roughness={0.3}
-                metalness={0.6}
-                transparent
-                opacity={isSelected ? 0.95 : 0.4} // Lowered opacity so real model is visible through them
-            />
-        </mesh>
     );
 }
 
@@ -199,12 +117,21 @@ function PlaceholderBuilding() {
 export default function BuildingModel() {
     const { building, units } = useEngineStore();
 
-    // Use DB units if available, otherwise fallback only if no real model exists
+    const parsePosition = (u: UnitRow): [number, number, number] => {
+        const p = u.position;
+        if (Array.isArray(p) && p.length >= 3) return [Number(p[0]), Number(p[1]), Number(p[2])];
+        return [0, (u.floor ?? 1) * 3, 0];
+    };
+    const parseSize = (u: UnitRow): [number, number, number] => {
+        const s = u.size;
+        if (Array.isArray(s) && s.length >= 3) return [Number(s[0]), Number(s[1]), Number(s[2])];
+        return [3, 2, 3];
+    };
     const displayUnits: DisplayUnit[] = units.length > 0
         ? units.map((u: UnitRow) => ({
             id: u.id,
-            position: (u as UnitRow & { position?: [number, number, number] }).position || [0, u.floor * 3, 0],
-            size: (u as UnitRow & { size?: [number, number, number] }).size || [3, 2, 3]
+            position: parsePosition(u),
+            size: parseSize(u),
         }))
         : !building?.model_url ? FALLBACK_UNITS : [];
 

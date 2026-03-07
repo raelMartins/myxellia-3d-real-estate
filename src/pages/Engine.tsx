@@ -28,7 +28,7 @@ export default function Engine() {
         building, units, loading,
         selectedUnit, viewMode, lightingMode, unitStatuses, notification,
         fetchBuilding, fetchUnits, setSelectedUnit, setViewMode, setLightingMode,
-        setUnitStatus, setNotification, requestScreenshot,
+        setUnitStatus, setNotification, requestScreenshot, setUnitPositionHandler,
     } = useEngineStore();
 
     const [suggestModalOpen, setSuggestModalOpen] = useState(false);
@@ -156,6 +156,33 @@ export default function Engine() {
         await fetchUnits(buildingId);
         setNotification('Unit removed.');
     };
+
+    const handleUpdateUnitPosition = async (unitId: string, position: [number, number, number]) => {
+        const { buildingId: bid } = useEngineStore.getState();
+        if (!bid) return;
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const token = useAuthStore.getState().session?.access_token;
+        if (!url || !key || !token) return;
+        const res = await fetch(`${url}/rest/v1/units?id=eq.${unitId}`, {
+            method: 'PATCH',
+            headers: {
+                'apikey': key,
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({ position }),
+        });
+        if (!res.ok) return;
+        await useEngineStore.getState().fetchUnits(bid);
+        setNotification('Unit position updated.');
+    };
+
+    useEffect(() => {
+        setUnitPositionHandler(handleUpdateUnitPosition);
+        return () => setUnitPositionHandler(null);
+    }, [setUnitPositionHandler]);
 
     const handleSuggestUnits = async () => {
         if (!buildingId || !building) return;

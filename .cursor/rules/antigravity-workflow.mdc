@@ -5,14 +5,14 @@ alwaysApply: true
 
 # Antigravity-Style Workflow
 
-Before making any **relatively significant change** to the codebase:
+Before making **any** file or codebase change (no exceptions — trivial or non-trivial):
 
 1. **Walkthrough** — Briefly explain what you’re about to change and why (scope and impact).
 2. **Implementation plan** — Outline the steps you’ll take (files, approach, order).
 3. **Todo checklist** — Use the todo tool to list concrete tasks so progress is visible.
 4. **Ask before proceeding** — Explicitly ask for confirmation (e.g. “Proceed with this plan?”) and wait for approval before editing.
-5. **Commands up front** — List any command-line commands the user should run **before** you proceed (e.g. `npm install`, env setup, migrations). Put them in a clear block so they can copy-paste.
+5. **Commands up front** — List any command-line commands the user should run **before** you proceed (e.g. `npm install`, env setup, migrations). If none are needed, say “No commands required.” Put commands in a clear block so they can copy-paste.
 
-Apply this for non-trivial changes (new features, refactors, multi-file edits, config or dependency changes). Skip for trivial single-line or obvious fixes unless the user asks for the full flow.
+Do not skip this workflow for small edits, single-line fixes, or “obvious” changes. Apply it to every change request.
 
 After confirmation, execute the plan and keep the todo list updated.

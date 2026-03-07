@@ -80,6 +80,8 @@ export interface Database {
                     perks: string | null
                     internal_model_url: string | null
                     deleted_at: string | null
+                    position: [number, number, number] | null
+                    size: [number, number, number] | null
                 }
                 Insert: {
                     id?: string
@@ -101,6 +103,8 @@ export interface Database {
                     perks?: string | null
                     internal_model_url?: string | null
                     deleted_at?: string | null
+                    position?: [number, number, number] | null
+                    size?: [number, number, number] | null
                 }
                 Update: {
                     id?: string
@@ -122,6 +126,8 @@ export interface Database {
                     perks?: string | null
                     internal_model_url?: string | null
                     deleted_at?: string | null
+                    position?: [number, number, number] | null
+                    size?: [number, number, number] | null
                 }
             }
             reservations: {

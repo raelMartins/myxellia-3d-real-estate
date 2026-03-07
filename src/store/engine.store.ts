@@ -21,6 +21,8 @@ interface EngineState {
     notification: string | null
     /** Used by AI Suggest units: capture current canvas to image */
     screenshotHandler: (() => Promise<string>) | null
+    /** Set by Engine: persist unit position after drag (admin only) */
+    unitPositionHandler: ((unitId: string, position: [number, number, number]) => Promise<void>) | null
 
     setBuilding: (id: string | null) => void
     fetchBuilding: (id: string) => Promise<void>
@@ -33,6 +35,7 @@ interface EngineState {
     setUnitStatus: (id: string, status: UnitStatus) => void
     setNotification: (msg: string | null) => void
     setScreenshotHandler: (handler: (() => Promise<string>) | null) => void
+    setUnitPositionHandler: (handler: ((unitId: string, position: [number, number, number]) => Promise<void>) | null) => void
     requestScreenshot: () => Promise<string>
 }
 
@@ -49,6 +52,7 @@ export const useEngineStore = create<EngineState>((set) => ({
     notification: null,
     unitStatuses: {},
     screenshotHandler: null,
+    unitPositionHandler: null,
 
     setBuilding: (id) => set({ buildingId: id, activeFloor: null, selectedUnit: null, viewMode: 'exterior' }),
 
@@ -111,6 +115,7 @@ export const useEngineStore = create<EngineState>((set) => ({
     setUnitStatus: (id, st) => set((s) => ({ unitStatuses: { ...s.unitStatuses, [id]: st } })),
     setNotification: (msg) => set({ notification: msg }),
     setScreenshotHandler: (handler) => set({ screenshotHandler: handler }),
+    setUnitPositionHandler: (handler) => set({ unitPositionHandler: handler }),
     requestScreenshot: (): Promise<string> => {
         const handler = useEngineStore.getState().screenshotHandler;
         if (!handler) return Promise.reject(new Error('Canvas not ready for screenshot'));
