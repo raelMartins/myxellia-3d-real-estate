@@ -5,6 +5,7 @@ import { useGLTF, Html, Center, useFBX } from '@react-three/drei';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { useEngineStore } from '../store/engine.store';
 import { ErrorBoundary } from 'react-error-boundary';
+import { getGroundColor } from '../lib/groundColor';
 import type { Database } from '../lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
@@ -138,6 +139,46 @@ function UnitBox({ unit }: { unit: UnitMesh }) {
     );
 }
 
+/** Radial gradient texture (white center → transparent edge) for hero ground alpha */
+function useRadialAlphaTexture(size = 256) {
+    return useMemo(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d')!;
+        const cx = size / 2;
+        const r = cx;
+        const gradient = ctx.createRadialGradient(cx, cx, 0, cx, cx, r);
+        gradient.addColorStop(0, 'rgba(255,255,255,1)');
+        gradient.addColorStop(0.5, 'rgba(255,255,255,0.6)');
+        gradient.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, size, size);
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.needsUpdate = true;
+        return tex;
+    }, [size]);
+}
+
+function HeroGround({ envContext }: { envContext: string | null | undefined }) {
+    const color = getGroundColor(envContext);
+    const alphaMap = useRadialAlphaTexture(128);
+    const geometry = useMemo(() => new THREE.CircleGeometry(18, 64), []);
+    return (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.9, 0]} receiveShadow geometry={geometry}>
+            <meshStandardMaterial
+                color={color}
+                roughness={0.95}
+                metalness={0.05}
+                transparent
+                opacity={0.92}
+                alphaMap={alphaMap}
+                depthWrite={false}
+            />
+        </mesh>
+    );
+}
+
 function PlaceholderBuilding() {
     return (
         <group>
@@ -190,9 +231,12 @@ export default function BuildingModel() {
                 <UnitBox key={u.id} unit={u} />
             ))}
 
-            {/* Ground plane */}
+            {/* Hero ground: circle under building that fades into skybox */}
+            <HeroGround envContext={building?.env_context} />
+
+            {/* Ground plane (shadow receiver) — minimal */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.91, 0]} receiveShadow>
-                <planeGeometry args={[100, 100]} />
+                <planeGeometry args={[14, 14]} />
                 <meshStandardMaterial color="#0A0A0B" roughness={1} metalness={0} />
             </mesh>
         </group>

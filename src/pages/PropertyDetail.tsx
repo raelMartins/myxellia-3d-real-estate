@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../lib/database.types';
 import { ArrowLeft, Box, MapPin, Layers, BedDouble, Bath, Maximize2, Play, ExternalLink } from 'lucide-react';
+import { formatCentsToCurrency } from '../lib/currency';
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 
@@ -176,7 +177,13 @@ export default function PropertyDetail() {
                         {/* Pricing Card */}
                         <div className="glass rounded-2xl p-6" style={{ borderColor: 'rgba(198,166,100,0.25)' }}>
                             <div className="text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase mb-1">Starting From</div>
-                            <div className="font-serif-display text-3xl text-[#C6A664] mb-4">{bldg.starting_price || '$2.4M'}</div>
+                            <div className="font-serif-display text-3xl text-[#C6A664] mb-4">
+                                {bldg.starting_price
+                                    ? (isNaN(Number(bldg.starting_price))
+                                        ? bldg.starting_price
+                                        : formatCentsToCurrency(Number(bldg.starting_price)))
+                                    : '$2.4M'}
+                            </div>
                             <div className="flex justify-between text-[11px] text-[#94A3B8] mb-2">
                                 <span>Available Units</span>
                                 <span className="text-[#39FF14] font-medium">{availUnits} / {totalUnits}</span>

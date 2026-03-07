@@ -4,6 +4,7 @@ import { Environment, OrbitControls, ContactShadows } from '@react-three/drei';
 import type { PresetsType } from '@react-three/drei/helpers/environment-assets';
 import AssetLoader from './AssetLoader';
 import BuildingModel from './BuildingModel';
+import GroundedSkyboxEnv from './GroundedSkyboxEnv';
 import InteriorModel from './InteriorModel';
 import { useEngineStore } from '../store/engine.store';
 
@@ -56,7 +57,7 @@ export default function MyxelliaCanvas() {
 
     return (
         <Canvas
-            camera={{ position: [25, 20, 25], fov: 32 }}
+            camera={{ position: [3.4, 2.75, 3.4], fov: 32 }}
             dpr={[1, 2]}
             gl={{ preserveDrawingBuffer: true, antialias: true, alpha: false }}
             shadows
@@ -77,17 +78,20 @@ export default function MyxelliaCanvas() {
 
             <Suspense fallback={<AssetLoader />}>
                 {hasGeneratedEnv ? (
-                    <Environment files={building!.generated_env_url!} background />
+                    <>
+                        <GroundedSkyboxEnv envUrl={building!.generated_env_url!} />
+                        <Environment files={building!.generated_env_url!} background={false} />
+                    </>
                 ) : (
                     <Environment preset={finalPreset} background={true} />
                 )}
 
                 <ContactShadows
                     resolution={1024}
-                    scale={120}
-                    blur={3}
-                    opacity={lightingMode === 'night' ? 0.8 : 0.45}
-                    far={60}
+                    scale={18}
+                    blur={2}
+                    opacity={lightingMode === 'night' ? 0.8 : 0.5}
+                    far={10}
                     color="#000000"
                 />
 
@@ -101,8 +105,8 @@ export default function MyxelliaCanvas() {
                 dampingFactor={0.06}
                 minPolarAngle={0.1}
                 maxPolarAngle={Math.PI / 2.2}
-                minDistance={12}
-                maxDistance={55}
+                minDistance={4}
+                maxDistance={24}
                 enablePan={false}
             />
         </Canvas>

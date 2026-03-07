@@ -74,6 +74,11 @@ export interface Database {
                     locked_at: string | null
                     locked_by: string | null
                     mesh_id: string | null
+                    display_name: string | null
+                    view_type: string | null
+                    amenities: string | null
+                    perks: string | null
+                    internal_model_url: string | null
                 }
                 Insert: {
                     id?: string
@@ -89,6 +94,11 @@ export interface Database {
                     locked_at?: string | null
                     locked_by?: string | null
                     mesh_id?: string | null
+                    display_name?: string | null
+                    view_type?: string | null
+                    amenities?: string | null
+                    perks?: string | null
+                    internal_model_url?: string | null
                 }
                 Update: {
                     id?: string
@@ -104,6 +114,11 @@ export interface Database {
                     locked_at?: string | null
                     locked_by?: string | null
                     mesh_id?: string | null
+                    display_name?: string | null
+                    view_type?: string | null
+                    amenities?: string | null
+                    perks?: string | null
+                    internal_model_url?: string | null
                 }
             }
             reservations: {

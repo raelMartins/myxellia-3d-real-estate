@@ -4,7 +4,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_MODEL = 'gemini-2.0-flash';
 
 const SYSTEM_PROMPT = `You are analyzing screenshots of a 3D building model (exterior views from different angles).
 Identify potential residential units (apartments/flats). For each unit you can identify, provide:
@@ -48,16 +48,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
     const geminiRes = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts }],
-        generationConfig: {
+        generation_config: {
           temperature: 0.2,
-          maxOutputTokens: 1024,
-          responseMimeType: 'application/json',
+          max_output_tokens: 1024,
         },
       }),
       signal: AbortSignal.timeout(60000),
@@ -66,6 +65,12 @@ Deno.serve(async (req) => {
     if (!geminiRes.ok) {
       const errText = await geminiRes.text();
       console.error('Gemini error:', geminiRes.status, errText);
+      if (geminiRes.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'AI quota or rate limit reached. Please try again in a minute, or check your Gemini API plan at https://ai.google.dev/gemini-api/docs/rate-limits' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return new Response(
         JSON.stringify({ error: 'Gemini API failed: ' + errText }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -96,9 +101,11 @@ Deno.serve(async (req) => {
     );
   } catch (err) {
     console.error(err);
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    const isQuota = message.includes('quota') || message.includes('rate limit');
     return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: message }),
+      { status: isQuota ? 429 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

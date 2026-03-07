@@ -3,11 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth.store';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
-import {
-    LogOut, ArrowRight, Activity, Users, TrendingUp,
-    MapPin, Layers, Plus
-} from 'lucide-react';
+import { LogOut, ArrowRight, Activity, Users, TrendingUp, MapPin, Layers, Plus } from 'lucide-react';
 import type { Database } from '../lib/database.types';
+import { formatCentsToCurrency } from '../lib/currency';
 
 type BuildingRow = Database['public']['Tables']['buildings']['Row'];
 
@@ -95,7 +93,11 @@ function BuildingCard({ building, index }: { building: BuildingRow & { badge?: s
                         <div>
                             <div className="flex items-center gap-2 mb-2">
                                 <span className="text-[10px] tracking-[0.25em] text-[#C6A664] uppercase font-bold">
-                                    {building.starting_price || 'Available Now'}
+                                    {building.starting_price
+                                        ? (isNaN(Number(building.starting_price))
+                                            ? building.starting_price
+                                            : formatCentsToCurrency(Number(building.starting_price)))
+                                        : 'Available Now'}
                                 </span>
                             </div>
                             <h3 className="font-serif-display text-3xl text-white mb-2 leading-tight">

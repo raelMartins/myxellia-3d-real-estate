@@ -31,6 +31,29 @@ export async function generateEnvImage(buildingId: string, envContext: string): 
   return res.json();
 }
 
+export interface ProjectData {
+  name: string;
+  tagline: string;
+  location: string;
+  price_cents: number;
+  description: string;
+  env_context: string;
+}
+
+/** Generate luxury real estate details from Gemini 1.5 Flash via Edge Function */
+export async function generateProjectDetails(hints?: { name?: string; location?: string }): Promise<ProjectData> {
+  const res = await fetch(`${getFunctionsUrl()}/generate-project-details`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(hints || {}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'Failed to generate project details');
+  }
+  return res.json();
+}
+
 export interface UnitSuggestion {
   floor: number;
   position: string;

@@ -1,19 +1,19 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Upload, ArrowRight, Building2,
-    MapPin, FileText, ShieldCheck, Zap, Box, Loader2, Sparkles, CheckCircle, Eye, X
+    MapPin, FileText, ShieldCheck, Box, Loader2, Sparkles, CheckCircle, Eye, X, Banknote
 } from 'lucide-react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Center, Environment, ContactShadows } from '@react-three/drei';
-import { supabase } from '../lib/supabase';
 import type { Database } from '../lib/database.types';
+import { useAuthStore } from '../store/auth.store';
 import { ModelLoader } from '../components/BuildingModel';
-import { generateEnvImage } from '../lib/ai';
-import { useEffect } from 'react';
+import { generateEnvImage, generateProjectDetails } from '../lib/ai';
+import { CurrencyInput } from '../components/CurrencyInput';
+import { formatCentsToCurrency } from '../lib/currency';
 
-type BuildingInsert = Database['public']['Tables']['buildings']['Insert'];
 type UnitInsert = Database['public']['Tables']['units']['Insert'];
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
@@ -28,14 +28,12 @@ export default function DeployProject() {
     const [name, setName] = useState('');
     const [tagline, setTagline] = useState('');
     const [location, setLocation] = useState('');
-    const [price, setPrice] = useState('');
+    const [price, setPrice] = useState<number | null>(null);
     const [heroUrl, setHeroUrl] = useState('');
     const [storeUrl, setStoreUrl] = useState('');
     const [description, setDescription] = useState('');
     const [envContext, setEnvContext] = useState('');
-    const [useBypass, setUseBypass] = useState(true);
-    const [diagLogs, setDiagLogs] = useState<string[]>([]);
-    const [isDiagRunning, setIsDiagRunning] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
 
     const [file, setFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -79,46 +77,28 @@ export default function DeployProject() {
         setStep('upload');
     };
 
-    const addLog = (msg: string) => {
-        console.log(`[DIAG] ${msg}`);
-        setDiagLogs(prev => [...prev.slice(-4), msg]);
-    };
-
-    const runConnectionDiag = async () => {
-        setIsDiagRunning(true);
-        setDiagLogs([]);
-        addLog('Starting Connection Diagnostics...');
-
-        const url = import.meta.env.VITE_SUPABASE_URL;
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-        addLog(`Env URL: ${url ? 'FOUND' : 'MISSING'}`);
-        addLog(`Env Key: ${key ? 'FOUND' : 'MISSING'}`);
-
-        // Test 1: SDK Simple Query
+    const handleMagicGenerate = async () => {
+        setIsGenerating(true);
+        setError(null);
         try {
-            addLog('Test 1: SDK Simple Query...');
-            const { error: err } = await supabase.from('buildings').select('id').limit(1);
-            if (err) throw err;
-            addLog('✅ SDK Query: Success');
-        } catch (err: unknown) {
-            addLog(`❌ SDK Query: Fail (${err instanceof Error ? err.message : String(err)})`);
-        }
-
-        // Test 2: Direct Fetch REST
-        try {
-            addLog('Test 2: Direct Fetch REST...');
-            const res = await fetch(`${url}/rest/v1/buildings?select=id&limit=1`, {
-                headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+            const data = await generateProjectDetails({
+                name: name || undefined,
+                location: location || undefined
             });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            addLog('✅ Direct REST: Success');
-        } catch (err: unknown) {
-            addLog(`❌ Direct REST: Fail (${err instanceof Error ? err.message : String(err)})`);
+            setName(data.name);
+            setTagline(data.tagline);
+            setLocation(data.location);
+            setPrice(data.price_cents);
+            setDescription(data.description);
+            setEnvContext(data.env_context);
+        } catch (err: any) {
+            console.error('Magic Generate failed:', err);
+            setError('AI generation failed. Please try again or fill manually.');
+        } finally {
+            setIsGenerating(false);
         }
-
-        setIsDiagRunning(false);
     };
+
 
     const handleUpload = async () => {
         if (!file) return;
@@ -126,227 +106,111 @@ export default function DeployProject() {
         setError(null);
         setUploadProgress(0);
 
-        console.log('[DEBUG] Starting upload process...');
-        console.log('[DEBUG] File info:', { name: file.name, size: file.size, type: file.type });
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        if (!supabaseUrl || !supabaseKey) {
+            setError('Missing Supabase env (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).');
+            setUploading(false);
+            return;
+        }
+
+        // Use auth store session so we don't depend on SDK getSession() (which was timing out)
+        const token = useAuthStore.getState().session?.access_token ?? null;
+        if (!token) {
+            setError('Please sign in to add a building. Row-level security requires an authenticated admin account.');
+            setUploading(false);
+            return;
+        }
 
         let progressInterval: ReturnType<typeof setInterval> | null = null;
         try {
-            console.log('[DEBUG] 1. Starting handleUpload...');
-
-            // Check session with a short timeout. We proceed even if it fails 
-            // since the bucket policies we are setting allow public access.
-            console.log('[DEBUG] 3. Attempting to fetch session (1s timeout)...');
-            let session: { user: { id: string }; access_token: string } | null = null;
-            try {
-                const sessionPromise = supabase.auth.getSession();
-                const timeoutPromise = new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error('Session fetch timed out')), 1000)
-                );
-                const result = await Promise.race([sessionPromise, timeoutPromise]);
-                const data = result && typeof result === 'object' && 'data' in result ? (result as { data: { session: { user: { id: string }; access_token: string } | null } }).data : null;
-                session = data?.session ?? null;
-                console.log('[DEBUG] 4. Session result:', session ? `User UID: ${session.user.id}` : 'NO SESSION');
-            } catch (sErr) {
-                console.warn('[DEBUG] 4. Session check failed or timed out:', sErr);
-            }
-
-            console.log('[DEBUG] 5. Setting progress interval...');
             progressInterval = setInterval(() => {
                 setUploadProgress(p => Math.min(p + 5, 85));
             }, 150);
 
             const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-            console.log('[DEBUG] 6. Target fileName:', fileName);
 
-            // ACTUAL UPLOAD CALL
-            console.log(`[DEBUG] 7a. Starting upload (${useBypass ? 'BYPASS' : 'SDK'})...`);
-
-            const token = session?.access_token ?? null;
-            let insertToken: string | null = token;
-
-            let uploadPromise;
-
-            if (useBypass) {
-                const url = import.meta.env.VITE_SUPABASE_URL;
-                const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-                uploadPromise = fetch(`${url}/storage/v1/object/models/${fileName}`, {
-                    method: 'POST',
-                    headers: {
-                        'apikey': key,
-                        'Authorization': `Bearer ${token || key}`,
-                        'Content-Type': file.type || 'application/octet-stream',
-                        'x-upsert': 'false'
-                    },
-                    body: file
-                }).then(async res => {
-                    if (!res.ok) {
-                        const errText = await res.text();
-                        console.error('[DEBUG] Bypass upload raw error:', { status: res.status, body: errText });
-                        throw new Error(`Bypass upload failed: ${res.status} ${errText}`);
-                    }
-                    return { data: { path: fileName }, error: null };
-                });
-            } else {
-                // SDK upload with 30s timeout
-                const sdkUpload = supabase.storage
-                    .from('models')
-                    .upload(fileName, file, {
-                        cacheControl: '3600',
-                        upsert: false
-                    });
-
-                const uploadTimeout = new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error('SDK upload timed out after 30s')), 30000)
-                );
-
-                uploadPromise = Promise.race([sdkUpload, uploadTimeout]);
-            }
-
-            const { data, error: storageErr } = await uploadPromise;
-
-            console.log('[DEBUG] 8. Storage response received:', { data, storageErr });
+            // 1) Model upload — direct fetch (shows in Network tab)
+            const uploadRes = await fetch(`${supabaseUrl}/storage/v1/object/models/${fileName}`, {
+                method: 'POST',
+                headers: {
+                    'apikey': supabaseKey,
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': file.type || 'application/octet-stream',
+                    'x-upsert': 'false'
+                },
+                body: file
+            });
             if (progressInterval) clearInterval(progressInterval);
 
-            if (storageErr) {
-                console.error('[DEBUG] Storage error:', storageErr);
-                throw storageErr;
+            if (!uploadRes.ok) {
+                const errText = await uploadRes.text();
+                throw new Error(`Upload failed: ${uploadRes.status} ${errText}`);
             }
 
-            console.log('[DEBUG] Upload successful:', data);
             setUploadProgress(92);
-
-            const { data: urlData } = supabase.storage.from('models').getPublicUrl(fileName);
-            console.log('[DEBUG] Public URL:', urlData.publicUrl);
+            const modelPublicUrl = `${supabaseUrl}/storage/v1/object/public/models/${fileName}`;
             setUploadProgress(95);
 
-            console.log('[DEBUG] Inserting building record...');
-
-            // RLS requires an authenticated user (admin). Anon key has no auth.uid() and will be rejected.
-            if (useBypass) {
-                if (!insertToken) {
-                    try {
-                        const sessionTimeout = new Promise<never>((_, reject) =>
-                            setTimeout(() => reject(new Error('Sign-in check timed out')), 5000)
-                        );
-                        const { data: sessionData } = await Promise.race([
-                            supabase.auth.getSession(),
-                            sessionTimeout
-                        ]) as { data: { session: { access_token: string } | null } };
-                        insertToken = sessionData?.session?.access_token ?? null;
-                    } catch {
-                        insertToken = null;
-                    }
-                }
-                if (!insertToken) {
-                    throw new Error(
-                        'Please sign in to add a building. Row-level security requires an authenticated admin account.'
-                    );
-                }
-            }
-
-            let building: { id: string };
-            if (useBypass) {
-                const url = import.meta.env.VITE_SUPABASE_URL;
-                const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-                const controller = new AbortController();
-                const insertTimeout = setTimeout(() => controller.abort(), 15000); // 15s timeout so insert doesn't hang
-                const res = await fetch(`${url}/rest/v1/buildings?select=*`, {
-                    method: 'POST',
-                    signal: controller.signal,
-                    headers: {
-                        'apikey': key,
-                        'Authorization': `Bearer ${insertToken}`,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'return=representation'
-                    },
-                    body: JSON.stringify({
-                        name,
-                        tagline,
-                        location,
-                        starting_price: price,
-                        hero_url: heroUrl,
-                        description,
-                        env_context: envContext,
-                        store_url: storeUrl,
-                        model_url: urlData.publicUrl,
-                        total_units: 5
-                    })
-                });
-                clearTimeout(insertTimeout);
-
-                if (!res.ok) {
-                    const errText = await res.text();
-                    throw new Error(`DB Insert bypass failed: ${res.status} ${errText}`);
-                }
-                const results = await res.json();
-                building = results[0];
-            } else {
-                const insertPayload: BuildingInsert = {
+            // 2) Building insert — direct fetch (shows in Network tab)
+            const controller = new AbortController();
+            const insertTimeout = setTimeout(() => controller.abort(), 15000);
+            const buildingRes = await fetch(`${supabaseUrl}/rest/v1/buildings?select=id`, {
+                method: 'POST',
+                signal: controller.signal,
+                headers: {
+                    'apikey': supabaseKey,
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                },
+                body: JSON.stringify({
                     name,
                     tagline: tagline || undefined,
                     location,
-                    starting_price: price || undefined,
+                    starting_price: price ? String(price) : undefined, // Store as string of cents
                     hero_url: heroUrl || undefined,
                     description: description ?? undefined,
                     env_context: envContext || undefined,
                     store_url: storeUrl || undefined,
-                    model_url: urlData.publicUrl,
+                    model_url: modelPublicUrl,
                     total_units: 5
-                };
-                const { data: b, error: dbErr } = await supabase
-                    .from('buildings')
-                    // @ts-expect-error - Supabase client inferrence with extended Database types
-                    .insert(insertPayload)
-                    .select()
-                    .single();
+                })
+            });
+            clearTimeout(insertTimeout);
 
-                if (dbErr) {
-                    console.error('[DEBUG] DB error:', dbErr);
-                    throw dbErr;
-                }
-                building = b;
+            if (!buildingRes.ok) {
+                const errText = await buildingRes.text();
+                throw new Error(`Failed to create building: ${buildingRes.status} ${errText}`);
             }
+            const buildingResults = await buildingRes.json();
+            const building = buildingResults[0] as { id: string };
 
-            console.log('[DEBUG] Building record inserted successfully.');
             setUploadProgress(98);
 
-            // AUTO GENERATE DEFAULT UNITS
-            console.log('[DEBUG] Auto-generating default units...');
+            // 3) Default units — direct fetch (shows in Network tab)
+            const defaultPrice = price || 120000000; // Default $1.2M in cents
             const defaultUnits: UnitInsert[] = [
-                { building_id: building.id, unit_number: '101', floor: 1, price: price || '$1.2M', status: 'available', mesh_id: 'u-101' },
-                { building_id: building.id, unit_number: '102', floor: 1, price: price || '$1.4M', status: 'available', mesh_id: 'u-102' },
-                { building_id: building.id, unit_number: '201', floor: 2, price: price || '$1.8M', status: 'available', mesh_id: 'u-201' },
-                { building_id: building.id, unit_number: '202', floor: 2, price: price || '$2.1M', status: 'available', mesh_id: 'u-202' },
-                { building_id: building.id, unit_number: 'PH1', floor: 3, price: price || '$4.5M', status: 'available', mesh_id: 'u-PH1' },
+                { building_id: building.id, unit_number: '101', floor: 1, price: defaultPrice, status: 'available', mesh_id: 'u-101' },
+                { building_id: building.id, unit_number: '102', floor: 1, price: defaultPrice + 20000000, status: 'available', mesh_id: 'u-102' },
+                { building_id: building.id, unit_number: '201', floor: 2, price: defaultPrice + 60000000, status: 'available', mesh_id: 'u-201' },
+                { building_id: building.id, unit_number: '202', floor: 2, price: defaultPrice + 90000000, status: 'available', mesh_id: 'u-202' },
+                { building_id: building.id, unit_number: 'PH1', floor: 3, price: defaultPrice + 330000000, status: 'available', mesh_id: 'u-PH1' },
             ];
 
-            if (useBypass) {
-                const url = import.meta.env.VITE_SUPABASE_URL;
-                const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-                // Use same token as building insert (RLS requires authenticated admin)
-                const cols = 'columns="building_id","unit_number","floor","price","status","mesh_id"';
-                const res = await fetch(`${url}/rest/v1/units?${cols}`, {
-                    method: 'POST',
-                    headers: {
-                        'apikey': key,
-                        'Authorization': `Bearer ${insertToken}`,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'return=representation'
-                    },
-                    body: JSON.stringify(defaultUnits)
-                });
-
-                if (!res.ok) {
-                    const errText = await res.text();
-                    console.error('[DEBUG] Units bypass failed:', { status: res.status, body: errText });
-                } else {
-                    console.log('[DEBUG] Units auto-generated successfully via bypass.');
-                }
-            } else {
-                // @ts-expect-error - Supabase client inferrence with extended Database types
-                const { error: unitsErr } = await supabase.from('units').insert(defaultUnits);
-                if (unitsErr) console.warn('[DEBUG] Failed to auto-generate units:', unitsErr);
+            const unitsRes = await fetch(`${supabaseUrl}/rest/v1/units`, {
+                method: 'POST',
+                headers: {
+                    'apikey': supabaseKey,
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                },
+                body: JSON.stringify(defaultUnits)
+            });
+            if (!unitsRes.ok) {
+                const errText = await unitsRes.text();
+                console.warn('[DEBUG] Units insert failed:', unitsRes.status, errText);
             }
 
             console.log('[DEBUG] All steps successfully completed.');
@@ -444,94 +308,69 @@ export default function DeployProject() {
 
                         {/* STEP 1 — Project Info */}
                         {step === 'meta' && (
-                            <motion.form key="meta" onSubmit={handleMetaSubmit} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.4, ease }} className="space-y-5">
-                                <div>
-                                    <label className={labelCls}><Building2 size={10} className="inline mr-1.5" />Project Name</label>
-                                    <input required value={name} onChange={e => setName(e.target.value)} placeholder='e.g. "THE MERIDIAN"' className={inputCls} style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
+                            <motion.div key="meta" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.4, ease }} className="space-y-6">
+                                <div className="flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={handleMagicGenerate}
+                                        disabled={isGenerating}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-full glass border-[#C6A664]/30 text-[#C6A664] text-[10px] tracking-widest uppercase font-bold hover:bg-[#C6A664]/10 transition-all disabled:opacity-50"
+                                    >
+                                        {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                                        {isGenerating ? 'Brainstorming...' : 'Magic Generate (AI)'}
+                                    </button>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+
+                                <form onSubmit={handleMetaSubmit} className="space-y-5">
                                     <div>
-                                        <label className={labelCls}>Tagline</label>
-                                        <input value={tagline} onChange={e => setTagline(e.target.value)} placeholder='e.g. "Beachfront Sanctuary"' className={inputCls} />
+                                        <label className={labelCls}><Building2 size={10} className="inline mr-1.5" />Project Name</label>
+                                        <input required value={name} onChange={e => setName(e.target.value)} placeholder='e.g. "THE MERIDIAN"' className={inputCls} style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
                                     </div>
-                                    <div>
-                                        <label className={labelCls}>Starting Price</label>
-                                        <input value={price} onChange={e => setPrice(e.target.value)} placeholder='e.g. "$1.8M"' className={inputCls} />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className={labelCls}><MapPin size={10} className="inline mr-1.5" />Location</label>
-                                    <input required value={location} onChange={e => setLocation(e.target.value)} placeholder='e.g. "Beachfront, Ibiza"' className={inputCls} style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
-                                </div>
-
-                                {/* Debug Diagnostics Section */}
-                                <div className="mt-8 p-4 rounded-xl border border-white/5 bg-white/[0.02]">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="text-[10px] tracking-widest text-[#94A3B8] uppercase font-bold flex items-center gap-2">
-                                            <Zap size={12} className="text-[#C6A664]" />
-                                            Connection Diagnostics
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className={labelCls}>Tagline</label>
+                                            <input value={tagline} onChange={e => setTagline(e.target.value)} placeholder='e.g. "Beachfront Sanctuary"' className={inputCls} />
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={runConnectionDiag}
-                                            disabled={isDiagRunning}
-                                            className="text-[9px] px-3 py-1 rounded bg-white/5 hover:bg-white/10 text-[#C6A664] transition-colors disabled:opacity-50"
-                                        >
-                                            {isDiagRunning ? 'Running...' : 'Run Health Check'}
-                                        </button>
-                                    </div>
-
-                                    {diagLogs.length > 0 && (
-                                        <div className="space-y-1 mb-4">
-                                            {diagLogs.map((log, i) => (
-                                                <div key={i} className={`text-[10px] font-mono ${log.includes('✅') ? 'text-[#39FF14]' : log.includes('❌') ? 'text-[#FF4B4B]' : 'text-[#94A3B8]'}`}>
-                                                    {log}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    <label className="flex items-center gap-3 cursor-pointer group">
-                                        <div className="relative">
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only"
-                                                checked={useBypass}
-                                                onChange={e => setUseBypass(e.target.checked)}
+                                        <div>
+                                            <label className={labelCls}><Banknote size={10} className="inline mr-1.5" />Starting Price</label>
+                                            <CurrencyInput
+                                                value={price}
+                                                onChange={setPrice}
+                                                placeholder="1,800,000"
+                                                className={inputCls}
                                             />
-                                            <div className={`w-8 h-4 rounded-full transition-colors ${useBypass ? 'bg-[#C6A664]' : 'bg-white/10'}`} />
-                                            <div className={`absolute left-0.5 top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${useBypass ? 'translate-x-4' : 'translate-x-0'}`} />
                                         </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[11px] text-[#F5F7FA]">Bypass SDK Mode</span>
-                                            <span className="text-[9px] text-[#94A3B8]">Use direct fetch if upload hangs</span>
-                                        </div>
-                                    </label>
-                                </div>
+                                    </div>
+                                    <div>
+                                        <label className={labelCls}><MapPin size={10} className="inline mr-1.5" />Location</label>
+                                        <input required value={location} onChange={e => setLocation(e.target.value)} placeholder='e.g. "Beachfront, Ibiza"' className={inputCls} style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
+                                    </div>
 
-                                <div>
-                                    <label className={labelCls}>Hero Image URL <span className="text-[#94A3B8]/40 normal-case">(Optional)</span></label>
-                                    <input value={heroUrl} onChange={e => setHeroUrl(e.target.value)} placeholder='https://images.unsplash.com/...' className={inputCls} />
-                                </div>
-                                <div>
-                                    <label className={labelCls}>Property Store URL <span className="text-[#94A3B8]/40 normal-case">(e.g. Shopify, External Portal)</span></label>
-                                    <input value={storeUrl} onChange={e => setStoreUrl(e.target.value)} placeholder='https://store.example.com/...' className={inputCls} />
-                                </div>
-                                <div>
-                                    <label className={labelCls}><FileText size={10} className="inline mr-1.5" />Project Description</label>
-                                    <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="A brief description for the Marketplace listing..." rows={2} className={`${inputCls} resize-none`} style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
-                                </div>
-                                <div>
-                                    <label className={labelCls}>
-                                        <Sparkles size={10} className="inline mr-1.5" />
-                                        Environment Context <span className="text-[#C6A664]">(AI will generate a matching skybox)</span>
-                                    </label>
-                                    <textarea value={envContext} onChange={e => setEnvContext(e.target.value)} placeholder='e.g. "A lush tropical hillside overlooking the ocean in Ibiza at golden hour..."' rows={3} className={`${inputCls} resize-none`} style={{ borderColor: 'rgba(198,166,100,0.2)' }} />
-                                </div>
-                                <button type="submit" className="w-full py-4 rounded-xl font-semibold text-[12px] tracking-[0.2em] uppercase hover:opacity-90 transition-all" style={{ background: 'linear-gradient(135deg, #C6A664, #D4BA82)', color: '#0A0A0B' }}>
-                                    Continue → Upload Model
-                                </button>
-                            </motion.form>
+
+                                    <div>
+                                        <label className={labelCls}>Hero Image URL <span className="text-[#94A3B8]/40 normal-case">(Optional)</span></label>
+                                        <input value={heroUrl} onChange={e => setHeroUrl(e.target.value)} placeholder='https://images.unsplash.com/...' className={inputCls} />
+                                    </div>
+                                    <div>
+                                        <label className={labelCls}>Property Store URL <span className="text-[#94A3B8]/40 normal-case">(e.g. Shopify, External Portal)</span></label>
+                                        <input value={storeUrl} onChange={e => setStoreUrl(e.target.value)} placeholder='https://store.example.com/...' className={inputCls} />
+                                    </div>
+                                    <div>
+                                        <label className={labelCls}><FileText size={10} className="inline mr-1.5" />Project Description</label>
+                                        <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="A brief description for the Marketplace listing..." rows={2} className={`${inputCls} resize-none`} style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
+                                    </div>
+                                    <div>
+                                        <label className={labelCls}>
+                                            <Sparkles size={10} className="inline mr-1.5" />
+                                            Environment Context <span className="text-[#C6A664]">(AI will generate a matching skybox)</span>
+                                        </label>
+                                        <textarea value={envContext} onChange={e => setEnvContext(e.target.value)} placeholder='e.g. "A lush tropical hillside overlooking the ocean in Ibiza at golden hour..."' rows={3} className={`${inputCls} resize-none`} style={{ borderColor: 'rgba(198,166,100,0.2)' }} />
+                                    </div>
+                                    <button type="submit" className="w-full py-4 rounded-xl font-semibold text-[12px] tracking-[0.2em] uppercase hover:opacity-90 transition-all" style={{ background: 'linear-gradient(135deg, #C6A664, #D4BA82)', color: '#0A0A0B' }}>
+                                        Continue → Upload Model
+                                    </button>
+                                </form>
+                            </motion.div>
                         )}
 
                         {/* STEP 2 — Upload */}
@@ -628,7 +467,7 @@ export default function DeployProject() {
                                     <div className="text-[9px] tracking-[0.25em] text-[#94A3B8] uppercase mb-3">Project Summary</div>
                                     <div className="grid grid-cols-2 gap-3 text-[12px]">
                                         <div><span className="text-[#94A3B8]">Name: </span><span className="text-[#F5F7FA]">{name}</span></div>
-                                        <div><span className="text-[#94A3B8]">Price: </span><span className="text-[#F5F7FA]">{price || 'N/A'}</span></div>
+                                        <div><span className="text-[#94A3B8]">Price: </span><span className="text-[#F5F7FA]">{price ? formatCentsToCurrency(price) : 'N/A'}</span></div>
                                         <div className="col-span-2"><span className="text-[#94A3B8]">Location: </span><span className="text-[#F5F7FA]">{location}</span></div>
                                         {storeUrl && <div className="col-span-2 truncate"><span className="text-[#94A3B8]">Store: </span><span className="text-[#C6A664]">{storeUrl}</span></div>}
                                         {envContext && <div className="col-span-2"><span className="text-[#94A3B8]">Environment: </span><span className="text-[#C6A664]">{envContext}</span></div>}
