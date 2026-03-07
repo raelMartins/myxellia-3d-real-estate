@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import { CurrencyInput } from './CurrencyInput';
+import AdminUnitFormBoxSize from './AdminUnitFormBoxSize';
 import type { Database } from '../lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
@@ -28,6 +29,13 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
     const [amenities, setAmenities] = useState(unit.amenities ?? '');
     const [perks, setPerks] = useState(unit.perks ?? '');
     const [internalModelUrl, setInternalModelUrl] = useState(unit.internal_model_url ?? '');
+    const parseSize = (s: [number, number, number] | null | undefined) => {
+        if (Array.isArray(s) && s.length >= 3) return [Number(s[0]), Number(s[1]), Number(s[2])];
+        return [3, 2, 3];
+    };
+    const [sizeX, setSizeX] = useState(() => parseSize(unit.size)[0]);
+    const [sizeY, setSizeY] = useState(() => parseSize(unit.size)[1]);
+    const [sizeZ, setSizeZ] = useState(() => parseSize(unit.size)[2]);
 
     useEffect(() => {
         setUnitNumber(unit.unit_number);
@@ -41,8 +49,12 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
         setAmenities(unit.amenities ?? '');
         setPerks(unit.perks ?? '');
         setInternalModelUrl(unit.internal_model_url ?? '');
+        const [sx, sy, sz] = parseSize(unit.size);
+        setSizeX(sx);
+        setSizeY(sy);
+        setSizeZ(sz);
     }, [unit.id, unit.unit_number, unit.display_name, unit.floor, unit.price, unit.area_sqm,
-        unit.bedrooms, unit.bathrooms, unit.view_type, unit.amenities, unit.perks, unit.internal_model_url]);
+        unit.bedrooms, unit.bathrooms, unit.view_type, unit.amenities, unit.perks, unit.internal_model_url, unit.size]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -60,6 +72,7 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
             amenities: amenities.trim() || null,
             perks: perks.trim() || null,
             internal_model_url: internalModelUrl.trim() || null,
+            size: [Number(sizeX) || 3, Number(sizeY) || 2, Number(sizeZ) || 3],
         };
         const baseUrl = import.meta.env.VITE_SUPABASE_URL;
         const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -195,6 +208,7 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
                     placeholder="e.g. 2 parking spots, storage"
                 />
             </div>
+            <AdminUnitFormBoxSize value={[sizeX, sizeY, sizeZ]} onChange={([x, y, z]) => { setSizeX(x); setSizeY(y); setSizeZ(z); }} />
             <div>
                 <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Interior 3D model URL</label>
                 <input

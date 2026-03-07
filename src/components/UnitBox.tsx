@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState, useEffect } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useEngineStore } from '../store/engine.store';
@@ -21,8 +21,12 @@ const STATUS_EMISSIVE: Record<string, string> = {
     sold: '#6A0000',
 };
 
+/** Match BuildingModel: hero ground at y = -0.9; box center must be above ground + half height */
+const GROUND_Y = -0.9;
+
 export default function UnitBox({ unit }: { unit: UnitMesh }) {
     const meshRef = useRef<THREE.Mesh>(null!);
+    const groupRef = useRef<THREE.Group>(null!);
     const { selectedUnit, hoveredUnit, unitStatuses, setSelectedUnit, setHoveredUnit, setViewMode, unitPositionHandler } = useEngineStore();
     const isAdmin = useAuthStore((s) => s.profile?.role === 'admin');
     const clickCountRef = useRef(0);
@@ -34,6 +38,8 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
     const offsetRef = useRef(new THREE.Vector3());
     const planeRef = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
     const intersectRef = useRef(new THREE.Vector3());
+    const cameraDirRef = useRef(new THREE.Vector3());
+    const groupWorldPosRef = useRef(new THREE.Vector3());
     const { camera, gl } = useThree();
     const raycasterRef = useRef(new THREE.Raycaster());
     const pointerRef = useRef(new THREE.Vector2());
@@ -48,52 +54,20 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
 
     useFrame(({ clock }) => {
         if (!meshRef.current) return;
-        const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-        if (status === 'pending') {
-            const pulse = Math.sin(clock.elapsedTime * 3) * 0.5 + 0.5;
-            mat.emissiveIntensity = 0.3 + pulse * 0.5;
-        } else if (isHovered || isSelected) {
-            mat.emissiveIntensity = 0.6;
+        if (isDragging) {
+            setDragPosition([...dragPositionRef.current]);
         } else {
-            mat.emissiveIntensity = 0.18;
+            const mat = meshRef.current.material as THREE.MeshStandardMaterial;
+            if (status === 'pending') {
+                const pulse = Math.sin(clock.elapsedTime * 3) * 0.5 + 0.5;
+                mat.emissiveIntensity = 0.3 + pulse * 0.5;
+            } else if (isHovered || isSelected) {
+                mat.emissiveIntensity = 0.6;
+            } else {
+                mat.emissiveIntensity = 0.18;
+            }
         }
     });
-
-    useEffect(() => {
-        if (!isDragging || !gl.domElement) return;
-        const el = gl.domElement;
-        const onMove = (e: PointerEvent) => {
-            const rect = el.getBoundingClientRect();
-            pointerRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-            pointerRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-            raycasterRef.current.setFromCamera(pointerRef.current, camera);
-            const hit = raycasterRef.current.ray.intersectPlane(planeRef.current, intersectRef.current);
-            if (hit) {
-                const x = hit.x - offsetRef.current.x;
-                const y = hit.y - offsetRef.current.y;
-                const z = hit.z - offsetRef.current.z;
-                const pos: [number, number, number] = [x, y, z];
-                dragPositionRef.current = pos;
-                setDragPosition(pos);
-            }
-        };
-        const onUp = () => {
-            el.removeEventListener('pointermove', onMove);
-            el.removeEventListener('pointerup', onUp);
-            document.body.style.cursor = 'auto';
-            dragJustEndedRef.current = true;
-            if (unitPositionHandler) {
-                unitPositionHandler(unit.id, [...dragPositionRef.current]).catch(() => {});
-            }
-            setIsDragging(false);
-        };
-        el.addEventListener('pointermove', onMove);
-        el.addEventListener('pointerup', onUp);
-        return () => {
-            el.removeEventListener('pointermove', onMove);
-            el.removeEventListener('pointerup', onUp);
-        };
-    }, [isDragging, camera, gl.domElement, unit.id, unitPositionHandler]);
 
     const handleClick = () => {
         if (dragJustEndedRef.current) {
@@ -114,45 +88,87 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
     const onPointerDown = (e: THREE.Event) => {
         if (!isAdmin || !unitPositionHandler) return;
         e.stopPropagation();
+        const ne = (e as unknown as { nativeEvent?: PointerEvent }).nativeEvent;
+        if (ne) {
+            ne.preventDefault();
+            ne.stopImmediatePropagation();
+        }
         const hit = e.intersections[0]?.point;
-        if (!hit || !meshRef.current) return;
-        offsetRef.current.copy(hit).sub(meshRef.current.position);
-        planeRef.current.setFromNormalAndCoplanarPoint(
-            new THREE.Vector3(0, 1, 0),
-            new THREE.Vector3(0, unit.position[1], 0)
-        );
+        if (!hit || !groupRef.current) return;
+        const el = gl.domElement;
+        const pointerId = (e as unknown as { nativeEvent?: { pointerId: number } }).nativeEvent?.pointerId ?? 0;
+        groupRef.current.getWorldPosition(groupWorldPosRef.current);
+        offsetRef.current.copy(hit).sub(groupWorldPosRef.current);
+        camera.getWorldDirection(cameraDirRef.current);
+        planeRef.current.setFromNormalAndCoplanarPoint(cameraDirRef.current, hit);
         dragPositionRef.current = unit.position;
         setDragPosition(unit.position);
         setIsDragging(true);
         document.body.style.cursor = 'grabbing';
-        const pid = (e as unknown as { nativeEvent?: { pointerId: number } }).nativeEvent?.pointerId;
-        if (pid !== undefined && gl.domElement.setPointerCapture) gl.domElement.setPointerCapture(pid);
+        el.setPointerCapture(pointerId);
+
+        const onMove = (ev: PointerEvent) => {
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            const rect = el.getBoundingClientRect();
+            pointerRef.current.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+            pointerRef.current.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+            raycasterRef.current.setFromCamera(pointerRef.current, camera);
+            const planeHit = raycasterRef.current.ray.intersectPlane(planeRef.current, intersectRef.current);
+            if (planeHit) {
+                const minY = GROUND_Y + unit.size[1] / 2;
+                let y = planeHit.y - offsetRef.current.y;
+                if (y < minY) y = minY;
+                dragPositionRef.current = [
+                    planeHit.x - offsetRef.current.x,
+                    y,
+                    planeHit.z - offsetRef.current.z,
+                ];
+            }
+        };
+        const onUp = (ev: PointerEvent) => {
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            el.removeEventListener('pointermove', onMove, true);
+            el.removeEventListener('pointerup', onUp, true);
+            el.releasePointerCapture(pointerId);
+            document.body.style.cursor = 'auto';
+            dragJustEndedRef.current = true;
+            const finalPos = [...dragPositionRef.current];
+            unitPositionHandler(unit.id, finalPos)
+                .then(() => setIsDragging(false))
+                .catch(() => setIsDragging(false));
+        };
+        el.addEventListener('pointermove', onMove, true);
+        el.addEventListener('pointerup', onUp, true);
     };
 
     const scale = isSelected ? 1.05 : isHovered ? 1.03 : 1;
 
     return (
-        <mesh
-            ref={meshRef}
-            position={displayPos}
-            scale={[scale, scale, scale]}
-            onClick={handleClick}
-            onPointerDown={onPointerDown}
-            onPointerOver={(e) => { e.stopPropagation(); setHoveredUnit(unit.id); if (!isDragging) document.body.style.cursor = isAdmin ? 'grab' : 'pointer'; }}
-            onPointerOut={() => { setHoveredUnit(null); if (!isDragging) document.body.style.cursor = 'auto'; }}
-            castShadow
-            receiveShadow
-        >
-            <boxGeometry args={unit.size} />
-            <meshStandardMaterial
-                color={isSelected ? '#FFFFFF' : baseColor}
-                emissive={emissiveColor}
-                emissiveIntensity={0.2}
-                roughness={0.3}
-                metalness={0.6}
-                transparent
-                opacity={isSelected ? 0.95 : 0.4}
-            />
-        </mesh>
+        <group ref={groupRef} position={displayPos}>
+            <mesh
+                ref={meshRef}
+                position={[0, 0, 0]}
+                scale={[scale, scale, scale]}
+                onClick={handleClick}
+                onPointerDown={onPointerDown}
+                onPointerOver={(e) => { e.stopPropagation(); setHoveredUnit(unit.id); if (!isDragging) document.body.style.cursor = isAdmin ? 'grab' : 'pointer'; }}
+                onPointerOut={() => { setHoveredUnit(null); if (!isDragging) document.body.style.cursor = 'auto'; }}
+                castShadow
+                receiveShadow
+            >
+                <boxGeometry args={unit.size} />
+                <meshStandardMaterial
+                    color={isSelected ? '#FFFFFF' : baseColor}
+                    emissive={emissiveColor}
+                    emissiveIntensity={0.2}
+                    roughness={0.3}
+                    metalness={0.6}
+                    transparent
+                    opacity={isSelected ? 0.95 : 0.4}
+                />
+            </mesh>
+        </group>
     );
 }

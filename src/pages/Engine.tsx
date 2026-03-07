@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Sunset, Moon, BellRing, Sparkles, Loader2 } from 'lucide-react';
+import { ErrorBoundary } from 'react-error-boundary';
 import MyxelliaCanvas from '../components/MyxelliaCanvas';
 import EngineSidebar from '../components/EngineSidebar';
 import EngineInteriorView from '../components/EngineInteriorView';
@@ -22,13 +23,27 @@ const LIGHTING_OPTS: { mode: LightingMode; icon: typeof Sun; label: string }[] =
     { mode: 'night', icon: Moon, label: 'Night' },
 ];
 
+function EngineErrorFallback({ resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
+    const navigate = useNavigate();
+    const { buildingId } = useParams();
+    return (
+        <div className="w-screen h-screen bg-[#0A0A0B] flex flex-col items-center justify-center gap-6 p-8">
+            <p className="text-red-400/90 text-sm text-center max-w-md">Something went wrong loading the engine.</p>
+            <div className="flex gap-4">
+                <button onClick={resetErrorBoundary} className="px-4 py-2 rounded-lg bg-white/10 text-[#F5F7FA] text-xs uppercase tracking-wider">Try again</button>
+                <button onClick={() => navigate(buildingId ? `/detail/${buildingId}` : '/')} className="px-4 py-2 rounded-lg bg-[#C6A664]/20 text-[#C6A664] text-xs uppercase tracking-wider">Back to project</button>
+            </div>
+        </div>
+    );
+}
+
 export default function Engine() {
     const { buildingId } = useParams();
     const {
         building, units, loading,
         selectedUnit, viewMode, lightingMode, unitStatuses, notification,
         fetchBuilding, fetchUnits, setSelectedUnit, setViewMode, setLightingMode,
-        setUnitStatus, setNotification, requestScreenshot, setUnitPositionHandler,
+        setUnitStatus, setNotification, requestScreenshot, setUnitPositionHandler, setUnitSizeHandler,
     } = useEngineStore();
 
     const [suggestModalOpen, setSuggestModalOpen] = useState(false);
@@ -179,10 +194,36 @@ export default function Engine() {
         setNotification('Unit position updated.');
     };
 
+    const handleUpdateUnitSize = async (unitId: string, size: [number, number, number]) => {
+        const { buildingId: bid } = useEngineStore.getState();
+        if (!bid) return;
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const token = useAuthStore.getState().session?.access_token;
+        if (!url || !key || !token) return;
+        const res = await fetch(`${url}/rest/v1/units?id=eq.${unitId}`, {
+            method: 'PATCH',
+            headers: {
+                'apikey': key,
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({ size }),
+        });
+        if (!res.ok) return;
+        await useEngineStore.getState().fetchUnits(bid);
+        setNotification('Unit size updated.');
+    };
+
     useEffect(() => {
         setUnitPositionHandler(handleUpdateUnitPosition);
-        return () => setUnitPositionHandler(null);
-    }, [setUnitPositionHandler]);
+        setUnitSizeHandler(handleUpdateUnitSize);
+        return () => {
+            setUnitPositionHandler(null);
+            setUnitSizeHandler(null);
+        };
+    }, [setUnitPositionHandler, setUnitSizeHandler]);
 
     const handleSuggestUnits = async () => {
         if (!buildingId || !building) return;
@@ -279,8 +320,9 @@ export default function Engine() {
     }
 
     return (
-        <div className="w-screen h-screen bg-[#0A0A0B] text-[#F5F7FA] flex overflow-hidden relative">
-            <AnimatePresence>
+        <ErrorBoundary FallbackComponent={EngineErrorFallback}>
+            <div className="w-screen h-screen bg-[#0A0A0B] text-[#F5F7FA] flex overflow-hidden relative">
+                <AnimatePresence>
                 {notification && (
                     <motion.div
                         key="notification"
@@ -349,6 +391,7 @@ export default function Engine() {
                 <EngineContextCard location={building?.location} />
                 <EngineViewControls />
             </div>
-        </div>
+            </div>
+        </ErrorBoundary>
     );
 }
