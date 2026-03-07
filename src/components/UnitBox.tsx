@@ -1,8 +1,10 @@
-import { useRef, useMemo, useState } from 'react';
+import { useRef, useMemo, useState, useCallback } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useEngineStore } from '../store/engine.store';
 import { useAuthStore } from '../store/auth.store';
+import { boxesOverlap, parseUnitPosition, parseUnitSize } from '../lib/unitBoxOverlap';
+import UnitBoxCornerHandles from './UnitBoxCornerHandles';
 
 export interface UnitMesh {
     id: string;
@@ -27,13 +29,17 @@ const GROUND_Y = -0.9;
 export default function UnitBox({ unit }: { unit: UnitMesh }) {
     const meshRef = useRef<THREE.Mesh>(null!);
     const groupRef = useRef<THREE.Group>(null!);
-    const { selectedUnit, hoveredUnit, unitStatuses, setSelectedUnit, setHoveredUnit, setViewMode, unitPositionHandler } = useEngineStore();
+    const { units: storeUnits, selectedUnit, hoveredUnit, unitStatuses, setSelectedUnit, setHoveredUnit, setViewMode, unitPositionHandler, unitSizeHandler } = useEngineStore();
     const isAdmin = useAuthStore((s) => s.profile?.role === 'admin');
     const clickCountRef = useRef(0);
     const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const dragJustEndedRef = useRef(false);
     const [isDragging, setIsDragging] = useState(false);
     const [dragPosition, setDragPosition] = useState<[number, number, number]>(unit.position);
+    const [isResizing, setIsResizing] = useState(false);
+    const [resizeSize, setResizeSize] = useState<[number, number, number]>(unit.size);
+    const [resizePosition, setResizePosition] = useState<[number, number, number]>(unit.position);
+    const [isIndicatorHovered, setIsIndicatorHovered] = useState(false);
     const dragPositionRef = useRef<[number, number, number]>(unit.position);
     const offsetRef = useRef(new THREE.Vector3());
     const planeRef = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
@@ -47,7 +53,8 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
     const status = unitStatuses[unit.id] ?? 'available';
     const isHovered = hoveredUnit === unit.id;
     const isSelected = selectedUnit === unit.id;
-    const displayPos = isDragging ? dragPosition : unit.position;
+    const displayPos = isDragging ? dragPosition : isResizing ? resizePosition : unit.position;
+    const displaySize = isResizing ? resizeSize : unit.size;
 
     const baseColor = useMemo(() => new THREE.Color(STATUS_COLOR[status]), [status]);
     const emissiveColor = useMemo(() => new THREE.Color(STATUS_EMISSIVE[status]), [status]);
@@ -56,7 +63,7 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
         if (!meshRef.current) return;
         if (isDragging) {
             setDragPosition([...dragPositionRef.current]);
-        } else {
+        } else if (!isResizing) {
             const mat = meshRef.current.material as THREE.MeshStandardMaterial;
             if (status === 'pending') {
                 const pulse = Math.sin(clock.elapsedTime * 3) * 0.5 + 0.5;
@@ -119,11 +126,16 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
                 const minY = GROUND_Y + unit.size[1] / 2;
                 let y = planeHit.y - offsetRef.current.y;
                 if (y < minY) y = minY;
-                dragPositionRef.current = [
+                const candidate: [number, number, number] = [
                     planeHit.x - offsetRef.current.x,
                     y,
                     planeHit.z - offsetRef.current.z,
                 ];
+                const overlapsOther = storeUnits.some((u) => {
+                    if (u.id === unit.id) return false;
+                    return boxesOverlap(candidate, unit.size, parseUnitPosition(u), parseUnitSize(u));
+                });
+                if (!overlapsOther) dragPositionRef.current = candidate;
             }
         };
         const onUp = (ev: PointerEvent) => {
@@ -144,6 +156,21 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
     };
 
     const scale = isSelected ? 1.05 : isHovered ? 1.03 : 1;
+    const showCornerHandles = (isHovered || isResizing || isIndicatorHovered) && isAdmin && !!unitSizeHandler && !isDragging;
+
+    const wouldOverlapOtherUnits = useCallback((center: [number, number, number], size: [number, number, number]) => (
+        storeUnits.some((u) => u.id !== unit.id && boxesOverlap(center, size, parseUnitPosition(u), parseUnitSize(u)))
+    ), [storeUnits, unit.id]);
+
+    const handleResizeEnd = () => {
+        if (!unitSizeHandler || !unitPositionHandler) return;
+        const finalSize = [...resizeSize];
+        const finalPos = [...resizePosition];
+        Promise.all([
+            unitSizeHandler(unit.id, finalSize),
+            unitPositionHandler(unit.id, finalPos),
+        ]).finally(() => setIsResizing(false));
+    };
 
     return (
         <group ref={groupRef} position={displayPos}>
@@ -153,12 +180,12 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
                 scale={[scale, scale, scale]}
                 onClick={handleClick}
                 onPointerDown={onPointerDown}
-                onPointerOver={(e) => { e.stopPropagation(); setHoveredUnit(unit.id); if (!isDragging) document.body.style.cursor = isAdmin ? 'grab' : 'pointer'; }}
-                onPointerOut={() => { setHoveredUnit(null); if (!isDragging) document.body.style.cursor = 'auto'; }}
+                onPointerOver={(e) => { e.stopPropagation(); setHoveredUnit(unit.id); if (!isDragging && !isResizing) document.body.style.cursor = isAdmin ? 'grab' : 'pointer'; }}
+                onPointerOut={() => { setHoveredUnit(null); if (!isDragging && !isResizing) document.body.style.cursor = 'auto'; }}
                 castShadow
                 receiveShadow
             >
-                <boxGeometry args={unit.size} />
+                <boxGeometry args={displaySize} />
                 <meshStandardMaterial
                     color={isSelected ? '#FFFFFF' : baseColor}
                     emissive={emissiveColor}
@@ -169,6 +196,20 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
                     opacity={isSelected ? 0.95 : 0.4}
                 />
             </mesh>
+            <UnitBoxCornerHandles
+                unit={unit}
+                displaySize={displaySize}
+                displayPosition={displayPos}
+                visible={showCornerHandles}
+                wouldOverlapOtherUnits={wouldOverlapOtherUnits}
+                onIndicatorHoverChange={setIsIndicatorHovered}
+                onResize={(size, pos) => {
+                    setIsResizing(true);
+                    setResizeSize(size);
+                    setResizePosition(pos);
+                }}
+                onResizeEnd={handleResizeEnd}
+            />
         </group>
     );
 }
