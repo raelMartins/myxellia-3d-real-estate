@@ -1,10 +1,11 @@
 import { useEngineStore } from '../store/engine.store';
-import { Html } from '@react-three/drei';
+import { Html, Center } from '@react-three/drei';
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
+import { ModelLoader } from './BuildingModel';
 
 const HOTSPOTS = [
     {
@@ -98,13 +99,9 @@ function Hotspot({ spot }: { spot: typeof HOTSPOTS[0] }) {
     );
 }
 
-export default function InteriorModel() {
-    const { selectedUnit } = useEngineStore();
-    if (!selectedUnit) return null;
-
+function PlaceholderRoom() {
     return (
         <group>
-            {/* Floor — polished concrete look */}
             <mesh position={[0, -1, 0]} receiveShadow>
                 <boxGeometry args={[9, 0.15, 9]} />
                 <meshStandardMaterial color="#18181A" roughness={0.08} metalness={0.1} />
@@ -164,10 +161,34 @@ export default function InteriorModel() {
                 <meshStandardMaterial color="#C6A664" emissive="#C6A664" emissiveIntensity={0.6} />
             </mesh>
 
-            {/* Hotspots */}
             {HOTSPOTS.map(spot => (
                 <Hotspot key={spot.id} spot={spot} />
             ))}
         </group>
     );
+}
+
+export default function InteriorModel() {
+    const { selectedUnit, units } = useEngineStore();
+    const unit = selectedUnit ? units.find((u) => u.id === selectedUnit) : null;
+    const modelUrl = unit?.internal_model_url;
+
+    if (!selectedUnit) return null;
+
+    if (modelUrl) {
+        const ext = modelUrl.split('.').pop()?.toLowerCase().replace(/\?.*$/, '');
+        return (
+            <group>
+                <mesh position={[0, -1, 0]} receiveShadow>
+                    <boxGeometry args={[20, 0.1, 20]} />
+                    <meshStandardMaterial color="#141416" roughness={0.9} />
+                </mesh>
+                <Center top>
+                    <ModelLoader url={modelUrl} extension={ext} />
+                </Center>
+            </group>
+        );
+    }
+
+    return <PlaceholderRoom />;
 }

@@ -96,6 +96,11 @@ export default function Engine() {
         setNotification('Unit info saved.');
         setUnitFormError(null);
     };
+    const handleInteriorUploaded = () => {
+        if (buildingId) fetchUnits(buildingId);
+        setNotification('Interior view added.');
+        setUnitFormError(null);
+    };
 
     const handleAddUnit = async (unitNumber: string, floor: number) => {
         if (!buildingId || !building) return;
@@ -350,17 +355,29 @@ export default function Engine() {
                 onAddUnit={handleAddUnit}
                 onDeleteUnit={handleDeleteUnit}
                 setUnitFormError={setUnitFormError}
+                onInteriorUploaded={handleInteriorUploaded}
+                onViewInterior={() => setViewMode('interior')}
             />
 
             <div className="flex-1 relative">
-                <AnimatePresence mode="wait">
-                    {viewMode === 'exterior' ? (
-                        <motion.div key="exterior" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.8 }} className="w-full h-full">
-                            <MyxelliaCanvas />
-                        </motion.div>
-                    ) : (
-                        <motion.div key="interior" initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.8, ease }} className="w-full h-full relative">
-                            <EngineInteriorView unit={selectedUnitData} isAdmin={!!isAdmin} onBackToExterior={() => setViewMode('exterior')} />
+                <div className="w-full h-full">
+                    <MyxelliaCanvas />
+                </div>
+                <AnimatePresence>
+                    {viewMode === 'interior' && (
+                        <motion.div
+                            key="interior-overlay"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="absolute inset-0 pointer-events-none"
+                        >
+                            <EngineInteriorView
+                                unit={selectedUnitData}
+                                isAdmin={!!isAdmin}
+                                onBackToExterior={() => setViewMode('exterior')}
+                            />
                         </motion.div>
                     )}
                 </AnimatePresence>

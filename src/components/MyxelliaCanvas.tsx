@@ -32,6 +32,18 @@ function ScreenshotCapture() {
     return null;
 }
 
+/** When entering interior view, set camera to a far zoomed-out starting position */
+function InteriorCameraReset() {
+    const { camera } = useThree();
+    const viewMode = useEngineStore((s) => s.viewMode);
+    useEffect(() => {
+        if (viewMode !== 'interior') return;
+        camera.position.set(28, 22, 28);
+        camera.updateProjectionMatrix();
+    }, [viewMode, camera]);
+    return null;
+}
+
 const LIGHTING = {
     morning: { preset: 'dawn' as const, ambient: 0.6, dirColor: '#FFD9A0', dirIntensity: 1.2, dirPos: [8, 20, 8] as [number, number, number] },
     golden: { preset: 'sunset' as const, ambient: 0.4, dirColor: '#FFC060', dirIntensity: 1.8, dirPos: [-15, 12, 10] as [number, number, number] },
@@ -64,9 +76,8 @@ export default function MyxelliaCanvas() {
         >
             <color attach="background" args={['#0A0A0B']} />
 
-            {useCloudFog && !hasGeneratedEnv && <fog attach="fog" args={['#141416', 10, 80]} />}
+            {viewMode === 'exterior' && useCloudFog && !hasGeneratedEnv && <fog attach="fog" args={['#141416', 10, 80]} />}
 
-            {/* Dynamic Lighting */}
             <ambientLight intensity={L.ambient} />
             <directionalLight
                 position={L.dirPos}
@@ -77,26 +88,31 @@ export default function MyxelliaCanvas() {
             />
 
             <Suspense fallback={<AssetLoader />}>
-                {hasGeneratedEnv ? (
-                    <>
-                        <GroundedSkyboxEnv envUrl={building!.generated_env_url!} />
-                        <Environment files={building!.generated_env_url!} background={false} />
-                    </>
-                ) : (
-                    <Environment preset={finalPreset} background={true} />
+                {viewMode === 'exterior' && (
+                    hasGeneratedEnv ? (
+                        <>
+                            <GroundedSkyboxEnv envUrl={building!.generated_env_url!} />
+                            <Environment files={building!.generated_env_url!} background={false} />
+                        </>
+                    ) : (
+                        <Environment preset={finalPreset} background={true} />
+                    )
                 )}
 
-                <ContactShadows
-                    resolution={1024}
-                    scale={18}
-                    blur={2}
-                    opacity={lightingMode === 'night' ? 0.8 : 0.5}
-                    far={10}
-                    color="#000000"
-                />
+                {viewMode === 'exterior' && (
+                    <ContactShadows
+                        resolution={1024}
+                        scale={18}
+                        blur={2}
+                        opacity={lightingMode === 'night' ? 0.8 : 0.5}
+                        far={10}
+                        color="#000000"
+                    />
+                )}
 
                 {viewMode === 'exterior' ? <BuildingModel /> : <InteriorModel />}
                 {viewMode === 'exterior' && <ScreenshotCapture />}
+                {viewMode === 'interior' && <InteriorCameraReset />}
             </Suspense>
 
             <OrbitControls
@@ -105,8 +121,8 @@ export default function MyxelliaCanvas() {
                 dampingFactor={0.06}
                 minPolarAngle={0.1}
                 maxPolarAngle={Math.PI / 2.2}
-                minDistance={4}
-                maxDistance={24}
+                minDistance={viewMode === 'interior' ? 1.5 : 4}
+                maxDistance={viewMode === 'interior' ? 180 : 24}
                 enablePan={false}
             />
         </Canvas>

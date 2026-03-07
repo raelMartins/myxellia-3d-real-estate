@@ -28,7 +28,6 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
     const [viewType, setViewType] = useState(unit.view_type ?? '');
     const [amenities, setAmenities] = useState(unit.amenities ?? '');
     const [perks, setPerks] = useState(unit.perks ?? '');
-    const [internalModelUrl, setInternalModelUrl] = useState(unit.internal_model_url ?? '');
     const parseSize = (s: [number, number, number] | null | undefined) => {
         if (Array.isArray(s) && s.length >= 3) return [Number(s[0]), Number(s[1]), Number(s[2])];
         return [3, 2, 3];
@@ -48,13 +47,12 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
         setViewType(unit.view_type ?? '');
         setAmenities(unit.amenities ?? '');
         setPerks(unit.perks ?? '');
-        setInternalModelUrl(unit.internal_model_url ?? '');
         const [sx, sy, sz] = parseSize(unit.size);
         setSizeX(sx);
         setSizeY(sy);
         setSizeZ(sz);
     }, [unit.id, unit.unit_number, unit.display_name, unit.floor, unit.price, unit.area_sqm,
-        unit.bedrooms, unit.bathrooms, unit.view_type, unit.amenities, unit.perks, unit.internal_model_url, unit.size]);
+        unit.bedrooms, unit.bathrooms, unit.view_type, unit.amenities, unit.perks, unit.size]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -71,7 +69,7 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
             view_type: viewType.trim() || null,
             amenities: amenities.trim() || null,
             perks: perks.trim() || null,
-            internal_model_url: internalModelUrl.trim() || null,
+            internal_model_url: unit.internal_model_url ?? null,
             size: [Number(sizeX) || 3, Number(sizeY) || 2, Number(sizeZ) || 3],
         };
         const baseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -209,16 +207,6 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
                 />
             </div>
             <AdminUnitFormBoxSize value={[sizeX, sizeY, sizeZ]} onChange={([x, y, z]) => { setSizeX(x); setSizeY(y); setSizeZ(z); }} />
-            <div>
-                <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Interior 3D model URL</label>
-                <input
-                    type="url"
-                    value={internalModelUrl}
-                    onChange={(e) => setInternalModelUrl(e.target.value)}
-                    className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA] placeholder-[#94A3B8]/50"
-                    placeholder="https://..."
-                />
-            </div>
             <button
                 type="submit"
                 disabled={saving}
