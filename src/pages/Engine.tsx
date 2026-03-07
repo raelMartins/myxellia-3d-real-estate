@@ -11,7 +11,6 @@ import EngineContextCard from '../components/EngineContextCard';
 import { useEngineStore } from '../store/engine.store';
 import { useAuthStore } from '../store/auth.store';
 import { suggestUnits, type UnitSuggestion } from '../lib/ai';
-import { supabase } from '../lib/supabase';
 import type { Database } from '../lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
@@ -94,16 +93,33 @@ export default function Engine() {
         }
         const rawPrice = (building as { starting_price?: string }).starting_price;
         const defaultPrice = rawPrice && !isNaN(Number(rawPrice)) ? Number(rawPrice) : 120000000;
-        const { error } = await supabase.from('units').insert({
-            building_id: buildingId,
-            unit_number: trimmed,
-            floor,
-            price: defaultPrice,
-            status: 'available',
-            mesh_id: `u-${trimmed}`,
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const token = useAuthStore.getState().session?.access_token;
+        if (!url || !key || !token) {
+            setUnitFormError('Missing Supabase config or session. Please sign in.');
+            return;
+        }
+        const res = await fetch(`${url}/rest/v1/units`, {
+            method: 'POST',
+            headers: {
+                'apikey': key,
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({
+                building_id: buildingId,
+                unit_number: trimmed,
+                floor,
+                price: defaultPrice,
+                status: 'available',
+                mesh_id: `u-${trimmed}`,
+            }),
         });
-        if (error) {
-            setUnitFormError(error.message || 'Failed to add unit');
+        if (!res.ok) {
+            const errText = await res.text();
+            setUnitFormError(errText || 'Failed to add unit');
             return;
         }
         setUnitFormError(null);
@@ -113,9 +129,26 @@ export default function Engine() {
 
     const handleDeleteUnit = async (unitId: string) => {
         if (!buildingId) return;
-        const { error } = await supabase.from('units').delete().eq('id', unitId);
-        if (error) {
-            setUnitFormError(error.message || 'Failed to delete unit');
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const token = useAuthStore.getState().session?.access_token;
+        if (!url || !key || !token) {
+            setUnitFormError('Missing Supabase config or session. Please sign in.');
+            return;
+        }
+        const res = await fetch(`${url}/rest/v1/units?id=eq.${unitId}`, {
+            method: 'PATCH',
+            headers: {
+                'apikey': key,
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({ deleted_at: new Date().toISOString() }),
+        });
+        if (!res.ok) {
+            const errText = await res.text();
+            setUnitFormError(errText || 'Failed to delete unit');
             return;
         }
         if (selectedUnit === unitId) setSelectedUnit(null);

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '../lib/supabase'
+import { useAuthStore } from './auth.store'
 import type { Database } from '../lib/database.types'
 
 type UnitStatus = 'available' | 'pending' | 'sold'
@@ -54,31 +54,52 @@ export const useEngineStore = create<EngineState>((set) => ({
 
     fetchBuilding: async (id) => {
         set({ loading: true, buildingId: id });
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const token = useAuthStore.getState().session?.access_token;
         try {
-            const { data, error } = await supabase.from('buildings').select('*').eq('id', id).single();
-            if (error) throw error;
-            set({ building: data });
-        } catch (err) {
-            console.error('Error fetching building:', err);
+            if (!url || !key) throw new Error('Missing Supabase config');
+            const res = await fetch(`${url}/rest/v1/buildings?id=eq.${id}&select=*`, {
+                headers: {
+                    'apikey': key,
+                    ...(token && { 'Authorization': `Bearer ${token}` }),
+                    'Accept': 'application/json',
+                },
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
+            const building = Array.isArray(data) ? data[0] ?? null : data;
+            set({ building });
+        } catch (_err) {
+            set({ building: null });
         } finally {
             set({ loading: false });
         }
     },
 
     fetchUnits: async (buildingId) => {
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const token = useAuthStore.getState().session?.access_token;
         try {
-            const { data, error } = await supabase.from('units').select('*').eq('building_id', buildingId);
-            if (error) throw error;
-            set({ units: data || [] });
+            if (!url || !key) throw new Error('Missing Supabase config');
+            const res = await fetch(`${url}/rest/v1/units?building_id=eq.${buildingId}&deleted_at=is.null&select=*`, {
+                headers: {
+                    'apikey': key,
+                    ...(token && { 'Authorization': `Bearer ${token}` }),
+                    'Accept': 'application/json',
+                },
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const data = (await res.json()) as UnitRow[];
 
-            // Sync unit statuses
             const statuses: Record<string, UnitStatus> = {};
-            data?.forEach((u: UnitRow) => {
+            (data || []).forEach((u: UnitRow) => {
                 statuses[u.id] = u.status as UnitStatus;
             });
-            set({ unitStatuses: statuses });
-        } catch (err) {
-            console.error('Error fetching units:', err);
+            set({ units: data || [], unitStatuses: statuses });
+        } catch (_err) {
+            set({ units: [] });
         }
     },
 

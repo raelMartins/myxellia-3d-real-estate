@@ -79,6 +79,7 @@ export interface Database {
                     amenities: string | null
                     perks: string | null
                     internal_model_url: string | null
+                    deleted_at: string | null
                 }
                 Insert: {
                     id?: string
@@ -99,6 +100,7 @@ export interface Database {
                     amenities?: string | null
                     perks?: string | null
                     internal_model_url?: string | null
+                    deleted_at?: string | null
                 }
                 Update: {
                     id?: string
@@ -119,6 +121,7 @@ export interface Database {
                     amenities?: string | null
                     perks?: string | null
                     internal_model_url?: string | null
+                    deleted_at?: string | null
                 }
             }
             reservations: {

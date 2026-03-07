@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { useAuthStore } from '../store/auth.store';
 import { CurrencyInput } from './CurrencyInput';
 import type { Database } from '../lib/database.types';
 
@@ -61,10 +61,27 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
             perks: perks.trim() || null,
             internal_model_url: internalModelUrl.trim() || null,
         };
-        const { error } = await supabase.from('units').update(payload).eq('id', unit.id);
+        const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const token = useAuthStore.getState().session?.access_token;
+        if (!baseUrl || !key || !token) {
+            setSaving(false);
+            onError('Missing Supabase config or session. Please sign in.');
+            return;
+        }
+        const res = await fetch(`${baseUrl}/rest/v1/units?id=eq.${unit.id}`, {
+            method: 'PATCH',
+            headers: {
+                'apikey': key,
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify(payload),
+        });
         setSaving(false);
-        if (error) {
-            onError(error.message);
+        if (!res.ok) {
+            onError(await res.text() || 'Failed to update unit');
             return;
         }
         onSaved();
