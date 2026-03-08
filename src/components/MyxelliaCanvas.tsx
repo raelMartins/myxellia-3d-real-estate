@@ -84,12 +84,11 @@ const LIGHTING = {
 };
 
 export default function MyxelliaCanvas() {
-    const { viewMode, lightingMode, building } = useEngineStore();
+    const { viewMode, lightingMode, building, selectedSkyboxUrl } = useEngineStore();
     const L = LIGHTING[lightingMode as LightingKey];
 
-    // AI-generated environment: use only when URL is non-empty (avoids undefined texture in drei)
-    const generatedEnvUrl = building?.generated_env_url?.trim();
-    const hasGeneratedEnv = !!generatedEnvUrl;
+    const envUrl = (selectedSkyboxUrl ?? building?.generated_env_url)?.trim() || null;
+    const hasCustomEnv = !!envUrl;
 
     // Fallback: keyword-based preset when no generated image
     const envCtx = (building?.env_context || '').toLowerCase();
@@ -110,7 +109,7 @@ export default function MyxelliaCanvas() {
         >
             <color attach="background" args={['#0A0A0B']} />
 
-            {viewMode === 'exterior' && useCloudFog && !hasGeneratedEnv && <fog attach="fog" args={['#141416', 10, 80]} />}
+            {viewMode === 'exterior' && useCloudFog && !hasCustomEnv && <fog attach="fog" args={['#141416', 10, 80]} />}
 
             <ambientLight intensity={L.ambient} />
             <directionalLight
@@ -124,10 +123,10 @@ export default function MyxelliaCanvas() {
             <Suspense fallback={<AssetLoader />}>
                 {viewMode === 'exterior' && (
                     <ErrorBoundary fallback={null}>
-                        {hasGeneratedEnv ? (
+                        {hasCustomEnv && envUrl ? (
                             <>
-                                <GroundedSkyboxEnv envUrl={generatedEnvUrl!} />
-                                <Environment files={generatedEnvUrl!} background={false} />
+                                <GroundedSkyboxEnv envUrl={envUrl} />
+                                <Environment files={envUrl} background={false} />
                             </>
                         ) : (
                             <Environment preset={finalPreset} background={true} />

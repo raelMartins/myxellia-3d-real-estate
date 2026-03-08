@@ -9,8 +9,10 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Center, Environment, ContactShadows } from '@react-three/drei';
 import { useAuthStore } from '../store/auth.store';
 import { ModelLoader } from '../components/BuildingModel';
-import { generateEnvImage, generateProjectDetails } from '../lib/ai';
+import { generateProjectDetails } from '../lib/ai';
 import { CurrencyInput } from '../components/CurrencyInput';
+import SkyboxSelector from '../components/SkyboxSelector';
+import type { SkyboxRow } from '../lib/skybox';
 import { formatCentsToCurrency } from '../lib/currency';
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
@@ -29,7 +31,7 @@ export default function DeployProject() {
     const [heroUrl, setHeroUrl] = useState('');
     const [storeUrl, setStoreUrl] = useState('');
     const [description, setDescription] = useState('');
-    const [envContext, setEnvContext] = useState('');
+    const [selectedSkybox, setSelectedSkybox] = useState<SkyboxRow | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
     const [file, setFile] = useState<File | null>(null);
@@ -87,9 +89,7 @@ export default function DeployProject() {
             setLocation(data.location);
             setPrice(data.price_cents);
             setDescription(data.description);
-            setEnvContext(data.env_context);
-        } catch (err: any) {
-            console.error('Magic Generate failed:', err);
+        } catch {
             setError('AI generation failed. Please try again or fill manually.');
         } finally {
             setIsGenerating(false);
@@ -165,12 +165,12 @@ export default function DeployProject() {
                     name,
                     tagline: tagline || undefined,
                     location,
-                    starting_price: price ? String(price) : undefined, // Store as string of cents
+                    starting_price: price ? String(price) : undefined,
                     hero_url: heroUrl || undefined,
                     description: description ?? undefined,
-                    env_context: envContext || undefined,
                     store_url: storeUrl || undefined,
                     model_url: modelPublicUrl,
+                    generated_env_url: selectedSkybox?.file_url ?? undefined,
                     total_units: 5
                 })
             });
@@ -186,11 +186,6 @@ export default function DeployProject() {
             setUploadProgress(100);
             setNewBuildingId(building.id);
             setStep('done');
-
-            // AI: Generate environment skybox from env_context (Pollinations) in background
-            if (envContext?.trim()) {
-                generateEnvImage(building.id, envContext).catch(() => {});
-            }
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'Upload failed.');
             if (progressInterval) clearInterval(progressInterval);
@@ -326,9 +321,9 @@ export default function DeployProject() {
                                     <div>
                                         <label className={labelCls}>
                                             <Sparkles size={10} className="inline mr-1.5" />
-                                            Environment Context <span className="text-[#C6A664]">(AI will generate a matching skybox)</span>
+                                            Skybox environment
                                         </label>
-                                        <textarea value={envContext} onChange={e => setEnvContext(e.target.value)} placeholder='e.g. "A lush tropical hillside overlooking the ocean in Ibiza at golden hour..."' rows={3} className={`${inputCls} resize-none`} style={{ borderColor: 'rgba(198,166,100,0.2)' }} />
+                                        <SkyboxSelector selectedId={selectedSkybox?.id ?? null} onSelect={setSelectedSkybox} className="mt-2" />
                                     </div>
                                     <button type="submit" className="w-full py-4 rounded-xl font-semibold text-[12px] tracking-[0.2em] uppercase hover:opacity-90 transition-all" style={{ background: 'linear-gradient(135deg, #C6A664, #D4BA82)', color: '#0A0A0B' }}>
                                         Continue → Upload Model
@@ -434,7 +429,7 @@ export default function DeployProject() {
                                         <div><span className="text-[#94A3B8]">Price: </span><span className="text-[#F5F7FA]">{price ? formatCentsToCurrency(price) : 'N/A'}</span></div>
                                         <div className="col-span-2"><span className="text-[#94A3B8]">Location: </span><span className="text-[#F5F7FA]">{location}</span></div>
                                         {storeUrl && <div className="col-span-2 truncate"><span className="text-[#94A3B8]">Store: </span><span className="text-[#C6A664]">{storeUrl}</span></div>}
-                                        {envContext && <div className="col-span-2"><span className="text-[#94A3B8]">Environment: </span><span className="text-[#C6A664]">{envContext}</span></div>}
+                                        {selectedSkybox && <div className="col-span-2"><span className="text-[#94A3B8]">Skybox: </span><span className="text-[#C6A664]">{selectedSkybox.label}</span></div>}
                                     </div>
                                 </div>
 

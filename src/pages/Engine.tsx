@@ -13,6 +13,7 @@ import EngineContextCard from '../components/EngineContextCard';
 import { useEngineStore } from '../store/engine.store';
 import { useAuthStore } from '../store/auth.store';
 import { suggestUnits, type UnitSuggestion } from '../lib/ai';
+import { fetchSkyboxEnvironments } from '../lib/skybox';
 import type { Database } from '../lib/database.types';
 import type { InteriorHotspot } from '../lib/database.types';
 
@@ -44,8 +45,10 @@ export default function Engine() {
     const {
         building, units, loading,
         selectedUnit, viewMode, lightingMode, unitStatuses, notification,
+        skyboxEnvironments, selectedSkyboxUrl,
         fetchBuilding, fetchUnits, setSelectedUnit, setViewMode, setLightingMode,
         setUnitStatus, setNotification, requestScreenshot, setUnitPositionHandler, setUnitSizeHandler,
+        setSkyboxEnvironments, setSelectedSkyboxUrl,
         resetEngine,
     } = useEngineStore();
 
@@ -68,6 +71,13 @@ export default function Engine() {
         }
         return () => { resetEngine(); };
     }, [buildingId, fetchBuilding, fetchUnits, resetEngine]);
+    useEffect(() => {
+        const token = () => useAuthStore.getState().session?.access_token ?? undefined;
+        fetchSkyboxEnvironments(token).then(setSkyboxEnvironments);
+    }, [setSkyboxEnvironments]);
+    useEffect(() => {
+        if (building?.id) setSelectedSkyboxUrl(building.generated_env_url ?? null);
+    }, [building?.id, setSelectedSkyboxUrl]);
     useEffect(() => {
         if (!notification) return;
         const t = setTimeout(() => setNotification(null), 5000);
@@ -393,18 +403,36 @@ export default function Engine() {
                             Suggest units (AI)
                         </button>
                     )}
-                    <div className="glass-heavy p-1.5 rounded-full border border-white/10 flex items-center gap-1 shadow-2xl">
-                        {LIGHTING_OPTS.map((opt) => {
-                            const Icon = opt.icon;
-                            const isActive = lightingMode === opt.mode;
-                            return (
-                                <button key={opt.mode} onClick={() => setLightingMode(opt.mode)} className={`relative flex items-center gap-2 px-5 py-2.5 rounded-full transition-all duration-500 ${isActive ? 'bg-[#C6A664] text-[#0A0A0B]' : 'text-[#94A3B8] hover:text-[#F5F7FA]'}`}>
-                                    <Icon size={14} className={isActive ? 'animate-none' : 'opacity-60'} />
-                                    <span className="text-[10px] tracking-widest uppercase font-bold">{opt.label}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
+                    {viewMode === 'exterior' && (
+                        <>
+                            {skyboxEnvironments.length > 0 && (
+                                <div className="glass-heavy px-3 py-2 rounded-full border border-white/10 shadow-2xl">
+                                    <select
+                                        value={selectedSkyboxUrl ?? ''}
+                                        onChange={(e) => setSelectedSkyboxUrl(e.target.value || null)}
+                                        className="bg-transparent text-[10px] tracking-widest uppercase font-bold text-[#F5F7FA] focus:outline-none cursor-pointer max-w-[180px]"
+                                    >
+                                        <option value="">Default skybox</option>
+                                        {skyboxEnvironments.map((s) => (
+                                            <option key={s.id} value={s.file_url}>{s.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                            <div className="glass-heavy p-1.5 rounded-full border border-white/10 flex items-center gap-1 shadow-2xl">
+                                {LIGHTING_OPTS.map((opt) => {
+                                    const Icon = opt.icon;
+                                    const isActive = lightingMode === opt.mode;
+                                    return (
+                                        <button key={opt.mode} onClick={() => setLightingMode(opt.mode)} className={`relative flex items-center gap-2 px-5 py-2.5 rounded-full transition-all duration-500 ${isActive ? 'bg-[#C6A664] text-[#0A0A0B]' : 'text-[#94A3B8] hover:text-[#F5F7FA]'}`}>
+                                            <Icon size={14} className={isActive ? 'animate-none' : 'opacity-60'} />
+                                            <span className="text-[10px] tracking-widest uppercase font-bold">{opt.label}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <SuggestUnitsModal open={suggestModalOpen} loading={suggestLoading} saving={saving} error={suggestError} suggestions={suggestions} confirmed={confirmed} onClose={() => !suggestLoading && !saving && setSuggestModalOpen(false)} onToggle={toggleConfirmed} onSave={handleSaveSuggestedUnits} />

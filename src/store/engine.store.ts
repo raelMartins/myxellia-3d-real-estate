@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useAuthStore } from './auth.store'
 import type { Database } from '../lib/database.types'
+import type { SkyboxRow } from '../lib/skybox'
 
 type UnitStatus = 'available' | 'pending' | 'sold'
 type LightingMode = 'morning' | 'golden' | 'night'
@@ -29,6 +30,10 @@ interface EngineState {
     hotspotPlacementMode: boolean
     /** After click in placement mode, holds [x,y,z] until form is submitted or cancelled */
     capturedHotspotPosition: [number, number, number] | null
+    /** Fetched list of skybox environments for exterior skybox selector */
+    skyboxEnvironments: SkyboxRow[]
+    /** Currently selected skybox URL for exterior; null = use building default */
+    selectedSkyboxUrl: string | null
 
     setBuilding: (id: string | null) => void
     fetchBuilding: (id: string) => Promise<void>
@@ -45,6 +50,8 @@ interface EngineState {
     setUnitSizeHandler: (handler: ((unitId: string, size: [number, number, number]) => Promise<void>) | null) => void
     setHotspotPlacementMode: (on: boolean) => void
     setCapturedHotspotPosition: (pos: [number, number, number] | null) => void
+    setSkyboxEnvironments: (list: SkyboxRow[]) => void
+    setSelectedSkyboxUrl: (url: string | null) => void
     requestScreenshot: () => Promise<string>
     resetEngine: () => void
 }
@@ -66,6 +73,8 @@ export const useEngineStore = create<EngineState>((set) => ({
     unitSizeHandler: null,
     hotspotPlacementMode: false,
     capturedHotspotPosition: null,
+    skyboxEnvironments: [],
+    selectedSkyboxUrl: null,
 
     setBuilding: (id) => set({ buildingId: id, activeFloor: null, selectedUnit: null, viewMode: 'exterior' }),
 
@@ -132,6 +141,8 @@ export const useEngineStore = create<EngineState>((set) => ({
     setUnitSizeHandler: (handler) => set({ unitSizeHandler: handler }),
     setHotspotPlacementMode: (on) => set({ hotspotPlacementMode: on, ...(on ? {} : { capturedHotspotPosition: null }) }),
     setCapturedHotspotPosition: (pos) => set({ capturedHotspotPosition: pos }),
+    setSkyboxEnvironments: (list) => set({ skyboxEnvironments: list }),
+    setSelectedSkyboxUrl: (url) => set({ selectedSkyboxUrl: url }),
     requestScreenshot: (): Promise<string> => {
         const handler = useEngineStore.getState().screenshotHandler;
         if (!handler) return Promise.reject(new Error('Canvas not ready for screenshot'));
@@ -154,5 +165,7 @@ export const useEngineStore = create<EngineState>((set) => ({
         unitSizeHandler: null,
         hotspotPlacementMode: false,
         capturedHotspotPosition: null,
+        skyboxEnvironments: [],
+        selectedSkyboxUrl: null,
     }),
 }))

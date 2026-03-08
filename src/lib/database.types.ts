@@ -190,6 +190,26 @@ export interface Database {
                     company?: string | null
                 }
             }
+            skybox_environments: {
+                Row: {
+                    id: string
+                    created_at: string
+                    label: string
+                    file_url: string
+                }
+                Insert: {
+                    id?: string
+                    created_at?: string
+                    label: string
+                    file_url: string
+                }
+                Update: {
+                    id?: string
+                    created_at?: string
+                    label?: string
+                    file_url?: string
+                }
+            }
         }
     }
 }
