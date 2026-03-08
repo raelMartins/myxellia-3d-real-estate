@@ -345,7 +345,7 @@ export default function Engine() {
 
     return (
         <ErrorBoundary FallbackComponent={EngineErrorFallback}>
-            <div className="w-screen h-screen bg-[#0A0A0B] text-[#F5F7FA] flex overflow-hidden relative">
+            <div className="w-screen h-screen bg-[#0A0A0B] text-[#F5F7FA] overflow-hidden relative">
                 <AnimatePresence>
                 {notification && (
                     <motion.div
@@ -363,24 +363,7 @@ export default function Engine() {
                 )}
             </AnimatePresence>
 
-            <EngineSidebar
-                floors={floors}
-                selectedUnitData={selectedUnitData}
-                currentStatus={currentStatus}
-                unitFormError={unitFormError}
-                isAdmin={!!isAdmin}
-                onReserve={handleReserve}
-                onUnitSaved={handleUnitSaved}
-                onAddUnit={handleAddUnit}
-                onDeleteUnit={handleDeleteUnit}
-                setUnitFormError={setUnitFormError}
-                onInteriorUploaded={handleInteriorUploaded}
-                onViewInterior={() => setViewMode('interior')}
-                onSaveHotspots={handleSaveHotspots}
-                onOpenInteriorModal={() => setInteriorModalOpen(true)}
-            />
-
-            <div className="flex-1 relative">
+            <div className="absolute inset-0">
                 <div className="w-full h-full">
                     <MyxelliaCanvas />
                 </div>
@@ -436,6 +419,23 @@ export default function Engine() {
                 <EngineContextCard location={building?.location} />
                 <EngineViewControls />
             </div>
+
+            <EngineSidebar
+                floors={floors}
+                selectedUnitData={selectedUnitData}
+                currentStatus={currentStatus}
+                unitFormError={unitFormError}
+                isAdmin={!!isAdmin}
+                onReserve={handleReserve}
+                onUnitSaved={handleUnitSaved}
+                onAddUnit={handleAddUnit}
+                onDeleteUnit={handleDeleteUnit}
+                setUnitFormError={setUnitFormError}
+                onInteriorUploaded={handleInteriorUploaded}
+                onViewInterior={() => setViewMode('interior')}
+                onSaveHotspots={handleSaveHotspots}
+                onOpenInteriorModal={() => setInteriorModalOpen(true)}
+            />
             </div>
         </ErrorBoundary>
     );

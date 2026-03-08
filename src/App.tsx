@@ -277,7 +277,7 @@ export default function App() {
 
 function PropertyDetailKeyed() {
   const location = useLocation();
-  return <PropertyDetail key={location.pathname} />;
+  return <PropertyDetail key={`${location.pathname}-${location.key}`} />;
 }
 
 function EngineKeyed() {

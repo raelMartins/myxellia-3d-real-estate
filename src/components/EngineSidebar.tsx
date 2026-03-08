@@ -11,7 +11,8 @@ type UnitRow = Database['public']['Tables']['units']['Row'];
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 const SIDEBAR_WIDTH_EXPANDED = 320;
-const SIDEBAR_WIDTH_COLLAPSED = 56;
+const SIDEBAR_COLLAPSED_SIZE = 48;
+const INSET = 16;
 const STATUS_DOT: Record<string, string> = {
     available: 'status-available',
     pending: 'status-pending',
@@ -67,19 +68,32 @@ export default function EngineSidebar({
     const [addSubmitting, setAddSubmitting] = useState(false);
     const [deleteSubmitting, setDeleteSubmitting] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
+    const [expandedHeight, setExpandedHeight] = useState(
+        typeof window !== 'undefined' ? window.innerHeight - INSET * 2 : 500
+    );
 
     useEffect(() => {
         if (selectedUnit) setCollapsed(false);
     }, [selectedUnit]);
 
+    useEffect(() => {
+        const onResize = () => setExpandedHeight(window.innerHeight - INSET * 2);
+        onResize();
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+
     return (
         <motion.div
-            className="self-stretch my-4 ml-4 z-20 shrink-0 overflow-hidden rounded-xl glass-heavy flex flex-col"
+            className="absolute z-20 overflow-hidden glass-heavy flex flex-col"
+            style={{ left: INSET, top: INSET }}
             initial={{ x: -60, opacity: 0 }}
             animate={{
                 x: 0,
                 opacity: 1,
-                width: collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED,
+                width: collapsed ? SIDEBAR_COLLAPSED_SIZE : SIDEBAR_WIDTH_EXPANDED,
+                height: collapsed ? SIDEBAR_COLLAPSED_SIZE : expandedHeight,
+                borderRadius: collapsed ? SIDEBAR_COLLAPSED_SIZE / 2 : 12,
             }}
             transition={{ duration: 0.35, ease: [0.2, 0.8, 0.2, 1] }}
         >
@@ -87,7 +101,7 @@ export default function EngineSidebar({
                 <button
                     type="button"
                     onClick={() => setCollapsed(false)}
-                    className="w-full h-full min-h-[120px] flex items-center justify-center text-[#94A3B8] hover:text-[#C6A664] transition-colors"
+                    className="w-full h-full flex items-center justify-center rounded-full text-[#94A3B8] hover:text-[#C6A664] transition-colors"
                     aria-label="Open sidebar"
                 >
                     <PanelLeft size={22} strokeWidth={1.5} />
@@ -128,7 +142,7 @@ export default function EngineSidebar({
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto px-8 custom-scrollbar min-w-0">
+                    <div className="flex-1 min-h-0 overflow-y-auto px-8 custom-scrollbar min-w-0">
                         <div className="space-y-10 pb-12">
                             {floors.map((floor) => (
                                 <div key={floor.id} className="space-y-4">
