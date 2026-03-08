@@ -26,8 +26,8 @@ export default function PropertyDetail() {
                 const { data, error } = await supabase.from('buildings').select('*').eq('id', buildingId).single();
                 if (error) throw error;
                 setBldg(data);
-            } catch (err) {
-                console.error('PropertyDetail: Error loading building:', err);
+            } catch {
+                setBldg(null);
             } finally {
                 setLoading(false);
             }

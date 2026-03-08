@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { ArrowLeft, Plus, PanelLeft, PanelLeftClose } from 'lucide-react';
 import EngineSidebarSelectedUnit from './EngineSidebarSelectedUnit';
 import { useEngineStore } from '../store/engine.store';
 import { formatCentsToCurrency } from '../lib/currency';
@@ -10,6 +10,8 @@ import type { Database } from '../lib/database.types';
 type UnitRow = Database['public']['Tables']['units']['Row'];
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
+const SIDEBAR_WIDTH_EXPANDED = 320;
+const SIDEBAR_WIDTH_COLLAPSED = 56;
 const STATUS_DOT: Record<string, string> = {
     available: 'status-available',
     pending: 'status-pending',
@@ -34,6 +36,8 @@ interface EngineSidebarProps {
     setUnitFormError: (msg: string | null) => void;
     onInteriorUploaded: () => void;
     onViewInterior: () => void;
+    onSaveHotspots: (unitId: string, hotspots: import('../lib/database.types').InteriorHotspot[]) => void;
+    onOpenInteriorModal: () => void;
 }
 
 export default function EngineSidebar({
@@ -49,6 +53,8 @@ export default function EngineSidebar({
     setUnitFormError,
     onInteriorUploaded,
     onViewInterior,
+    onSaveHotspots,
+    onOpenInteriorModal,
 }: EngineSidebarProps) {
     const { buildingId } = useParams();
     const navigate = useNavigate();
@@ -60,157 +66,181 @@ export default function EngineSidebar({
     const [addFloor, setAddFloor] = useState(1);
     const [addSubmitting, setAddSubmitting] = useState(false);
     const [deleteSubmitting, setDeleteSubmitting] = useState(false);
-    const [interiorModalOpen, setInteriorModalOpen] = useState(false);
+    const [collapsed, setCollapsed] = useState(false);
+
+    useEffect(() => {
+        if (selectedUnit) setCollapsed(false);
+    }, [selectedUnit]);
 
     return (
         <motion.div
+            className="self-stretch my-4 ml-4 z-20 shrink-0 overflow-hidden rounded-xl glass-heavy flex flex-col"
             initial={{ x: -60, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.6, ease }}
-            className="w-80 h-full flex flex-col z-20 relative shrink-0"
-            style={{
-                background: 'rgba(15, 15, 18, 0.72)',
-                backdropFilter: 'saturate(180%) blur(28px)',
-                WebkitBackdropFilter: 'saturate(180%) blur(28px)',
-                borderRight: '1px solid rgba(255,255,255,0.07)',
-                boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.04), 20px 0 60px rgba(0,0,0,0.5)',
+            animate={{
+                x: 0,
+                opacity: 1,
+                width: collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED,
             }}
+            transition={{ duration: 0.35, ease: [0.2, 0.8, 0.2, 1] }}
         >
-            <div className="p-8 pb-6">
+            {collapsed ? (
                 <button
-                    onClick={() => {
-                        if (selectedUnit) {
-                            setSelectedUnit(null);
-                            setUnitFormError(null);
-                        } else {
-                            navigate(`/detail/${buildingId}`);
-                        }
-                    }}
-                    className="flex items-center gap-2 text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase hover:text-[#C6A664] transition-colors mb-6 group"
+                    type="button"
+                    onClick={() => setCollapsed(false)}
+                    className="w-full h-full min-h-[120px] flex items-center justify-center text-[#94A3B8] hover:text-[#C6A664] transition-colors"
+                    aria-label="Open sidebar"
                 >
-                    <ArrowLeft size={12} className="group-hover:-translate-x-1 transition-transform" />
-                    {selectedUnit ? 'Back' : 'Back to Summary'}
+                    <PanelLeft size={22} strokeWidth={1.5} />
                 </button>
-                <h2 className="font-serif-display text-4xl tracking-tight text-[#F5F7FA] leading-none mb-2">
-                    {building?.name || 'Project'}
-                </h2>
-                <div className="flex items-center gap-2 mb-8">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#39FF14] animate-pulse-neon" />
-                    <span className="text-[9px] tracking-[0.3em] text-[#94A3B8] uppercase">Interactive Engine</span>
-                </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-8 custom-scrollbar">
-                <div className="space-y-10 pb-12">
-                    {floors.map((floor) => (
-                        <div key={floor.id} className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <div className="h-px flex-1 bg-white/5" />
-                                <h4 className="text-[10px] tracking-[0.3em] uppercase text-[#C6A664] font-medium whitespace-nowrap">
-                                    {floor.name}
-                                </h4>
-                                <div className="h-px flex-1 bg-white/5" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                {floor.units.map((unit) => {
-                                    const status = unitStatuses[unit.id] ?? 'available';
-                                    const isSelected = selectedUnit === unit.id;
-                                    const isHovered = hoveredUnit === unit.id;
-                                    return (
-                                        <button
-                                            key={unit.id}
-                                            onClick={() => setSelectedUnit(unit.id)}
-                                            onMouseEnter={() => setHoveredUnit(unit.id)}
-                                            onMouseLeave={() => setHoveredUnit(null)}
-                                            className={`
-                                                relative p-4 rounded-xl text-left transition-all duration-300
-                                                ${isSelected ? 'glass-heavy border-[#C6A664]/40 bg-white/5 ring-1 ring-[#C6A664]/20' : 'glass border-white/5 hover:border-white/15'}
-                                            `}
-                                        >
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className={`text-xs font-medium ${isSelected ? 'text-[#F5F7FA]' : 'text-[#94A3B8]'}`}>
-                                                    {unit.unit_number}
-                                                </span>
-                                                <div className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[status]}`} />
-                                            </div>
-                                            <div className="text-[10px] tracking-wider text-[#94A3B8]/60 font-light truncate">
-                                                {unit.price ? formatCentsToCurrency(Number(unit.price)) : 'Contact for Price'}
-                                            </div>
-                                            {(isSelected || isHovered) && (
-                                                <motion.div
-                                                    layoutId="glow"
-                                                    className="absolute inset-0 rounded-xl pointer-events-none"
-                                                    style={{ boxShadow: '0 0 20px rgba(198,166,100,0.1)' }}
-                                                />
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    ))}
-                    {floors.length === 0 && (
-                        <div className="text-center py-10">
-                            <p className="text-[#94A3B8] text-[10px] tracking-widest uppercase">Inventory Loading...</p>
-                        </div>
-                    )}
-                    {isAdmin && (
-                        <div className="space-y-4 pt-4 border-t border-white/5">
-                            <h4 className="text-[10px] tracking-[0.3em] uppercase text-[#C6A664] font-medium">Add unit</h4>
-                            <div className="grid grid-cols-[1fr,72px] gap-2">
-                                <input
-                                    type="text"
-                                    placeholder="Unit number"
-                                    value={addUnitNumber}
-                                    onChange={(e) => setAddUnitNumber(e.target.value)}
-                                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-[#F5F7FA] placeholder:text-[#64748B] focus:border-[#C6A664]/50 focus:outline-none"
-                                />
-                                <input
-                                    type="number"
-                                    min={1}
-                                    value={addFloor}
-                                    onChange={(e) => setAddFloor(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-[#F5F7FA] focus:border-[#C6A664]/50 focus:outline-none"
-                                />
-                            </div>
+            ) : (
+                <>
+                    <div className="p-8 pb-6">
+                        <div className="flex items-center justify-between gap-2 mb-6">
+                            <button
+                                onClick={() => {
+                                    if (selectedUnit) {
+                                        setSelectedUnit(null);
+                                        setUnitFormError(null);
+                                    } else {
+                                        navigate(`/detail/${buildingId}`);
+                                    }
+                                }}
+                                className="flex items-center gap-2 text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase hover:text-[#C6A664] transition-colors group"
+                            >
+                                <ArrowLeft size={12} className="group-hover:-translate-x-1 transition-transform" />
+                                {selectedUnit ? 'Back' : 'Back to Summary'}
+                            </button>
                             <button
                                 type="button"
-                                onClick={async () => {
-                                    setAddSubmitting(true);
-                                    setUnitFormError(null);
-                                    await onAddUnit(addUnitNumber, addFloor);
-                                    setAddUnitNumber('');
-                                    setAddSubmitting(false);
-                                }}
-                                disabled={!addUnitNumber.trim() || addSubmitting}
-                                className="w-full py-2.5 rounded-xl border border-[#C6A664]/40 text-[#C6A664] text-[10px] tracking-[0.2em] uppercase font-medium flex items-center justify-center gap-2 hover:bg-[#C6A664]/10 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                                onClick={() => setCollapsed(true)}
+                                className="p-1.5 rounded-lg text-[#94A3B8] hover:text-[#C6A664] hover:bg-white/5 transition-colors"
+                                aria-label="Collapse sidebar"
                             >
-                                <Plus size={12} />
-                                Add unit box
+                                <PanelLeftClose size={18} strokeWidth={1.5} />
                             </button>
                         </div>
-                    )}
-                </div>
-            </div>
+                        <h2 className="font-serif-display text-4xl tracking-tight text-[#F5F7FA] leading-none mb-2">
+                            {building?.name || 'Project'}
+                        </h2>
+                        <div className="flex items-center gap-2 mb-8">
+                            <div className="w-1.5 h-1.5 rounded-full bg-[#39FF14] animate-pulse-neon" />
+                            <span className="text-[9px] tracking-[0.3em] text-[#94A3B8] uppercase">Interactive Engine</span>
+                        </div>
+                    </div>
 
-            <EngineSidebarSelectedUnit
-                selectedUnit={selectedUnit}
-                selectedUnitData={selectedUnitData}
-                currentStatus={currentStatus}
-                unitFormError={unitFormError}
-                isAdmin={isAdmin}
-                interiorModalOpen={interiorModalOpen}
-                setInteriorModalOpen={setInteriorModalOpen}
-                deleteSubmitting={deleteSubmitting}
-                onReserve={onReserve}
-                onUnitSaved={onUnitSaved}
-                onDeleteUnit={onDeleteUnit}
-                setSelectedUnit={setSelectedUnit}
-                setUnitFormError={setUnitFormError}
-                onInteriorUploaded={onInteriorUploaded}
-                onViewInterior={onViewInterior}
-                setDeleteSubmitting={setDeleteSubmitting}
-            />
+                    <div className="flex-1 overflow-y-auto px-8 custom-scrollbar min-w-0">
+                        <div className="space-y-10 pb-12">
+                            {floors.map((floor) => (
+                                <div key={floor.id} className="space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-px flex-1 bg-white/5" />
+                                        <h4 className="text-[10px] tracking-[0.3em] uppercase text-[#C6A664] font-medium whitespace-nowrap">
+                                            {floor.name}
+                                        </h4>
+                                        <div className="h-px flex-1 bg-white/5" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {floor.units.map((unit) => {
+                                            const status = unitStatuses[unit.id] ?? 'available';
+                                            const isSelected = selectedUnit === unit.id;
+                                            const isHovered = hoveredUnit === unit.id;
+                                            return (
+                                                <button
+                                                    key={unit.id}
+                                                    onClick={() => setSelectedUnit(unit.id)}
+                                                    onMouseEnter={() => setHoveredUnit(unit.id)}
+                                                    onMouseLeave={() => setHoveredUnit(null)}
+                                                    className={`
+                                                        relative p-4 rounded-xl text-left transition-all duration-300
+                                                        ${isSelected ? 'glass-heavy border-[#C6A664]/40 bg-white/5 ring-1 ring-[#C6A664]/20' : 'glass border-white/5 hover:border-white/15'}
+                                                    `}
+                                                >
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className={`text-xs font-medium ${isSelected ? 'text-[#F5F7FA]' : 'text-[#94A3B8]'}`}>
+                                                            {unit.unit_number}
+                                                        </span>
+                                                        <div className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[status]}`} />
+                                                    </div>
+                                                    <div className="text-[10px] tracking-wider text-[#94A3B8]/60 font-light truncate">
+                                                        {unit.price ? formatCentsToCurrency(Number(unit.price)) : 'Contact for Price'}
+                                                    </div>
+                                                    {(isSelected || isHovered) && (
+                                                        <motion.div
+                                                            layoutId="glow"
+                                                            className="absolute inset-0 rounded-xl pointer-events-none"
+                                                            style={{ boxShadow: '0 0 20px rgba(198,166,100,0.1)' }}
+                                                        />
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                            {floors.length === 0 && (
+                                <div className="text-center py-10">
+                                    <p className="text-[#94A3B8] text-[10px] tracking-widest uppercase">Inventory Loading...</p>
+                                </div>
+                            )}
+                            {isAdmin && (
+                                <div className="space-y-4 pt-4 border-t border-white/5">
+                                    <h4 className="text-[10px] tracking-[0.3em] uppercase text-[#C6A664] font-medium">Add unit</h4>
+                                    <div className="grid grid-cols-[1fr,72px] gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Unit number"
+                                            value={addUnitNumber}
+                                            onChange={(e) => setAddUnitNumber(e.target.value)}
+                                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-[#F5F7FA] placeholder:text-[#64748B] focus:border-[#C6A664]/50 focus:outline-none"
+                                        />
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            value={addFloor}
+                                            onChange={(e) => setAddFloor(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-[#F5F7FA] focus:border-[#C6A664]/50 focus:outline-none"
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            setAddSubmitting(true);
+                                            setUnitFormError(null);
+                                            await onAddUnit(addUnitNumber, addFloor);
+                                            setAddUnitNumber('');
+                                            setAddSubmitting(false);
+                                        }}
+                                        disabled={!addUnitNumber.trim() || addSubmitting}
+                                        className="w-full py-2.5 rounded-xl border border-[#C6A664]/40 text-[#C6A664] text-[10px] tracking-[0.2em] uppercase font-medium flex items-center justify-center gap-2 hover:bg-[#C6A664]/10 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                                    >
+                                        <Plus size={12} />
+                                        Add unit box
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <EngineSidebarSelectedUnit
+                        selectedUnit={selectedUnit}
+                        selectedUnitData={selectedUnitData}
+                        currentStatus={currentStatus}
+                        unitFormError={unitFormError}
+                        isAdmin={isAdmin}
+                        onOpenInteriorModal={onOpenInteriorModal}
+                        deleteSubmitting={deleteSubmitting}
+                        onReserve={onReserve}
+                        onUnitSaved={onUnitSaved}
+                        onDeleteUnit={onDeleteUnit}
+                        setSelectedUnit={setSelectedUnit}
+                        setUnitFormError={setUnitFormError}
+                        onInteriorUploaded={onInteriorUploaded}
+                        onViewInterior={onViewInterior}
+                        onSaveHotspots={onSaveHotspots}
+                        setDeleteSubmitting={setDeleteSubmitting}
+                    />
+                </>
+            )}
         </motion.div>
     );
 }

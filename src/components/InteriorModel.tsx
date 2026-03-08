@@ -6,33 +6,15 @@ import * as THREE from 'three';
 import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { ModelLoader } from './BuildingModel';
+import type { InteriorHotspot } from '../lib/database.types';
 
-const HOTSPOTS = [
-    {
-        id: 'hs-1',
-        title: 'Countertops',
-        material: 'Carrara Marble',
-        desc: 'Heat & scratch resistant. Bookmatched slab from Carrara quarry.',
-        position: [1.5, -0.4, 1] as [number, number, number],
-    },
-    {
-        id: 'hs-2',
-        title: 'Glass Façade',
-        material: 'Low-E Smart Glass',
-        desc: 'Electrochromic tinting. UV-blocking, triple-pane insulation.',
-        position: [0, 0.8, 3.5] as [number, number, number],
-    },
-    {
-        id: 'hs-3',
-        title: 'Flooring',
-        material: 'White Oak Wide-Plank',
-        desc: 'Engineered hardwood · 8" planks · Lifetime warranty.',
-        position: [-2, -0.85, -1] as [number, number, number],
-    },
+const PLACEHOLDER_HOTSPOTS: InteriorHotspot[] = [
+    { id: 'hs-1', title: 'Countertops', material: 'Carrara Marble', description: 'Heat & scratch resistant. Bookmatched slab from Carrara quarry.', position: [1.5, -0.4, 1] },
+    { id: 'hs-2', title: 'Glass Façade', material: 'Low-E Smart Glass', description: 'Electrochromic tinting. UV-blocking, triple-pane insulation.', position: [0, 0.8, 3.5] },
+    { id: 'hs-3', title: 'Flooring', material: 'White Oak Wide-Plank', description: 'Engineered hardwood · 8" planks · Lifetime warranty.', position: [-2, -0.85, -1] },
 ];
 
-/* Floating "+" hotspot button with pulse ring */
-function Hotspot({ spot }: { spot: typeof HOTSPOTS[0] }) {
+function HotspotMarker({ spot }: { spot: InteriorHotspot }) {
     const [open, setOpen] = useState(false);
     const ringRef = useRef<THREE.Mesh>(null!);
 
@@ -85,12 +67,16 @@ function Hotspot({ spot }: { spot: typeof HOTSPOTS[0] }) {
                             <div className="text-[9px] tracking-[0.25em] uppercase mb-1" style={{ color: '#C6A664' }}>
                                 {spot.title}
                             </div>
-                            <div className="text-[13px] font-light mb-1.5" style={{ color: '#F5F7FA' }}>
-                                {spot.material}
-                            </div>
-                            <p className="text-[11px] leading-relaxed" style={{ color: '#94A3B8' }}>
-                                {spot.desc}
-                            </p>
+                            {spot.material && (
+                                <div className="text-[13px] font-light mb-1.5" style={{ color: '#F5F7FA' }}>
+                                    {spot.material}
+                                </div>
+                            )}
+                            {(spot.description ?? spot.material) && (
+                                <p className="text-[11px] leading-relaxed" style={{ color: '#94A3B8' }}>
+                                    {spot.description ?? spot.material}
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>
@@ -161,8 +147,8 @@ function PlaceholderRoom() {
                 <meshStandardMaterial color="#C6A664" emissive="#C6A664" emissiveIntensity={0.6} />
             </mesh>
 
-            {HOTSPOTS.map(spot => (
-                <Hotspot key={spot.id} spot={spot} />
+            {PLACEHOLDER_HOTSPOTS.map((spot) => (
+                <HotspotMarker key={spot.id} spot={spot} />
             ))}
         </group>
     );
@@ -175,6 +161,8 @@ export default function InteriorModel() {
 
     if (!selectedUnit) return null;
 
+    const hotspotList = (unit?.hotspots && unit.hotspots.length > 0) ? unit.hotspots : null;
+
     if (modelUrl) {
         const ext = modelUrl.split('.').pop()?.toLowerCase().replace(/\?.*$/, '');
         return (
@@ -186,6 +174,9 @@ export default function InteriorModel() {
                 <Center top>
                     <ModelLoader url={modelUrl} extension={ext} />
                 </Center>
+                {hotspotList?.map((h) => (
+                    <HotspotMarker key={h.id} spot={h} />
+                ))}
             </group>
         );
     }

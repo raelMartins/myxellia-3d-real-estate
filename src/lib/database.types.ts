@@ -6,6 +6,15 @@ export type Json =
     | { [key: string]: Json | undefined }
     | Json[]
 
+/** Interior view hotspot: 3D position + content for the info card */
+export interface InteriorHotspot {
+    id: string
+    position: [number, number, number]
+    title: string
+    material?: string
+    description?: string
+}
+
 export interface Database {
     public: {
         Tables: {
@@ -82,6 +91,7 @@ export interface Database {
                     deleted_at: string | null
                     position: [number, number, number] | null
                     size: [number, number, number] | null
+                    hotspots: InteriorHotspot[] | null
                 }
                 Insert: {
                     id?: string
@@ -128,6 +138,7 @@ export interface Database {
                     deleted_at?: string | null
                     position?: [number, number, number] | null
                     size?: [number, number, number] | null
+                    hotspots?: InteriorHotspot[] | null
                 }
             }
             reservations: {

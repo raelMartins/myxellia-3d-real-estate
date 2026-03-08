@@ -133,8 +133,8 @@ export default function Lobby() {
                 const { data, error } = await supabase.from('buildings').select('*').order('created_at', { ascending: false });
                 if (error) throw error;
                 setBuildings(data || []);
-            } catch (err) {
-                console.error('Lobby: Error loading buildings:', err);
+            } catch {
+                setBuildings([]);
             } finally {
                 setLoading(false);
             }

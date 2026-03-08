@@ -7,14 +7,11 @@ import {
 } from 'lucide-react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Center, Environment, ContactShadows } from '@react-three/drei';
-import type { Database } from '../lib/database.types';
 import { useAuthStore } from '../store/auth.store';
 import { ModelLoader } from '../components/BuildingModel';
 import { generateEnvImage, generateProjectDetails } from '../lib/ai';
 import { CurrencyInput } from '../components/CurrencyInput';
 import { formatCentsToCurrency } from '../lib/currency';
-
-type UnitInsert = Database['public']['Tables']['units']['Insert'];
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 const ACCEPTED = ['.glb', '.gltf', '.fbx', '.obj'];
@@ -186,49 +183,16 @@ export default function DeployProject() {
             const buildingResults = await buildingRes.json();
             const building = buildingResults[0] as { id: string };
 
-            setUploadProgress(98);
-
-            // 3) Default units — direct fetch (shows in Network tab)
-            const defaultPrice = price || 120000000; // Default $1.2M in cents
-            const defaultUnits: UnitInsert[] = [
-                { building_id: building.id, unit_number: '101', floor: 1, price: defaultPrice, status: 'available', mesh_id: 'u-101' },
-                { building_id: building.id, unit_number: '102', floor: 1, price: defaultPrice + 20000000, status: 'available', mesh_id: 'u-102' },
-                { building_id: building.id, unit_number: '201', floor: 2, price: defaultPrice + 60000000, status: 'available', mesh_id: 'u-201' },
-                { building_id: building.id, unit_number: '202', floor: 2, price: defaultPrice + 90000000, status: 'available', mesh_id: 'u-202' },
-                { building_id: building.id, unit_number: 'PH1', floor: 3, price: defaultPrice + 330000000, status: 'available', mesh_id: 'u-PH1' },
-            ];
-
-            const unitsRes = await fetch(`${supabaseUrl}/rest/v1/units`, {
-                method: 'POST',
-                headers: {
-                    'apikey': supabaseKey,
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'return=representation'
-                },
-                body: JSON.stringify(defaultUnits)
-            });
-            if (!unitsRes.ok) {
-                const errText = await unitsRes.text();
-                console.warn('[DEBUG] Units insert failed:', unitsRes.status, errText);
-            }
-
-            console.log('[DEBUG] All steps successfully completed.');
             setUploadProgress(100);
             setNewBuildingId(building.id);
             setStep('done');
 
             // AI: Generate environment skybox from env_context (Pollinations) in background
             if (envContext?.trim()) {
-                generateEnvImage(building.id, envContext).then(() => {
-                    console.log('[DEBUG] Generated env image saved.');
-                }).catch((e) => {
-                    console.warn('[DEBUG] Env image generation failed:', e);
-                });
+                generateEnvImage(building.id, envContext).catch(() => {});
             }
         } catch (err: unknown) {
-            console.error('[DEBUG] CRITICAL ERROR in handleUpload:', err);
-            setError(err instanceof Error ? err.message : 'Upload failed. See console for details.');
+            setError(err instanceof Error ? err.message : 'Upload failed.');
             if (progressInterval) clearInterval(progressInterval);
         } finally {
             setUploading(false);

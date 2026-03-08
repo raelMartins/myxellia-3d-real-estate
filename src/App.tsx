@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/auth.store';
 import { LogIn, UserPlus, Mail, Lock, User as UserIcon, Loader2, Building2, Briefcase } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -266,11 +266,21 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Lobby />} />
-        <Route path="/detail/:buildingId" element={<PropertyDetail />} />
-        <Route path="/engine/:buildingId" element={<Engine />} />
+        <Route path="/detail/:buildingId" element={<PropertyDetailKeyed />} />
+        <Route path="/engine/:buildingId" element={<EngineKeyed />} />
         <Route path="/deploy" element={<DeployProject />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
+}
+
+function PropertyDetailKeyed() {
+  const location = useLocation();
+  return <PropertyDetail key={location.pathname} />;
+}
+
+function EngineKeyed() {
+  const location = useLocation();
+  return <Engine key={location.pathname} />;
 }

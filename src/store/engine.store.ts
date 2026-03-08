@@ -25,6 +25,10 @@ interface EngineState {
     unitPositionHandler: ((unitId: string, position: [number, number, number]) => Promise<void>) | null
     /** Set by Engine: persist unit size (admin only) */
     unitSizeHandler: ((unitId: string, size: [number, number, number]) => Promise<void>) | null
+    /** When true, next click in interior view captures 3D position for a new hotspot */
+    hotspotPlacementMode: boolean
+    /** After click in placement mode, holds [x,y,z] until form is submitted or cancelled */
+    capturedHotspotPosition: [number, number, number] | null
 
     setBuilding: (id: string | null) => void
     fetchBuilding: (id: string) => Promise<void>
@@ -39,7 +43,10 @@ interface EngineState {
     setScreenshotHandler: (handler: (() => Promise<string>) | null) => void
     setUnitPositionHandler: (handler: ((unitId: string, position: [number, number, number]) => Promise<void>) | null) => void
     setUnitSizeHandler: (handler: ((unitId: string, size: [number, number, number]) => Promise<void>) | null) => void
+    setHotspotPlacementMode: (on: boolean) => void
+    setCapturedHotspotPosition: (pos: [number, number, number] | null) => void
     requestScreenshot: () => Promise<string>
+    resetEngine: () => void
 }
 
 export const useEngineStore = create<EngineState>((set) => ({
@@ -57,6 +64,8 @@ export const useEngineStore = create<EngineState>((set) => ({
     screenshotHandler: null,
     unitPositionHandler: null,
     unitSizeHandler: null,
+    hotspotPlacementMode: false,
+    capturedHotspotPosition: null,
 
     setBuilding: (id) => set({ buildingId: id, activeFloor: null, selectedUnit: null, viewMode: 'exterior' }),
 
@@ -121,9 +130,29 @@ export const useEngineStore = create<EngineState>((set) => ({
     setScreenshotHandler: (handler) => set({ screenshotHandler: handler }),
     setUnitPositionHandler: (handler) => set({ unitPositionHandler: handler }),
     setUnitSizeHandler: (handler) => set({ unitSizeHandler: handler }),
+    setHotspotPlacementMode: (on) => set({ hotspotPlacementMode: on, ...(on ? {} : { capturedHotspotPosition: null }) }),
+    setCapturedHotspotPosition: (pos) => set({ capturedHotspotPosition: pos }),
     requestScreenshot: (): Promise<string> => {
         const handler = useEngineStore.getState().screenshotHandler;
         if (!handler) return Promise.reject(new Error('Canvas not ready for screenshot'));
         return handler();
     },
+    resetEngine: () => set({
+        building: null,
+        units: [],
+        buildingId: null,
+        loading: false,
+        activeFloor: null,
+        selectedUnit: null,
+        hoveredUnit: null,
+        viewMode: 'exterior',
+        lightingMode: 'golden',
+        notification: null,
+        unitStatuses: {},
+        screenshotHandler: null,
+        unitPositionHandler: null,
+        unitSizeHandler: null,
+        hotspotPlacementMode: false,
+        capturedHotspotPosition: null,
+    }),
 }))

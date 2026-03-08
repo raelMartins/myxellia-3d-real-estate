@@ -7,12 +7,14 @@ import MyxelliaCanvas from '../components/MyxelliaCanvas';
 import EngineSidebar from '../components/EngineSidebar';
 import EngineInteriorView from '../components/EngineInteriorView';
 import SuggestUnitsModal from '../components/SuggestUnitsModal';
+import InteriorUploadModal from '../components/InteriorUploadModal';
 import EngineViewControls from '../components/EngineViewControls';
 import EngineContextCard from '../components/EngineContextCard';
 import { useEngineStore } from '../store/engine.store';
 import { useAuthStore } from '../store/auth.store';
 import { suggestUnits, type UnitSuggestion } from '../lib/ai';
 import type { Database } from '../lib/database.types';
+import type { InteriorHotspot } from '../lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
 const ease = [0.2, 0.8, 0.2, 1] as const;
@@ -44,6 +46,7 @@ export default function Engine() {
         selectedUnit, viewMode, lightingMode, unitStatuses, notification,
         fetchBuilding, fetchUnits, setSelectedUnit, setViewMode, setLightingMode,
         setUnitStatus, setNotification, requestScreenshot, setUnitPositionHandler, setUnitSizeHandler,
+        resetEngine,
     } = useEngineStore();
 
     const [suggestModalOpen, setSuggestModalOpen] = useState(false);
@@ -53,6 +56,7 @@ export default function Engine() {
     const [confirmed, setConfirmed] = useState<Set<number>>(new Set());
     const [saving, setSaving] = useState(false);
     const [unitFormError, setUnitFormError] = useState<string | null>(null);
+    const [interiorModalOpen, setInteriorModalOpen] = useState(false);
 
     const { profile } = useAuthStore();
     const isAdmin = profile?.role === 'admin';
@@ -62,7 +66,8 @@ export default function Engine() {
             fetchBuilding(buildingId);
             fetchUnits(buildingId);
         }
-    }, [buildingId, fetchBuilding, fetchUnits]);
+        return () => { resetEngine(); };
+    }, [buildingId, fetchBuilding, fetchUnits, resetEngine]);
     useEffect(() => {
         if (!notification) return;
         const t = setTimeout(() => setNotification(null), 5000);
@@ -100,6 +105,20 @@ export default function Engine() {
         if (buildingId) fetchUnits(buildingId);
         setNotification('Interior view added.');
         setUnitFormError(null);
+    };
+    const handleSaveHotspots = async (unitId: string, hotspots: InteriorHotspot[]) => {
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const token = useAuthStore.getState().session?.access_token;
+        if (!url || !key || !token || !buildingId) return;
+        const res = await fetch(`${url}/rest/v1/units?id=eq.${unitId}`, {
+            method: 'PATCH',
+            headers: { 'apikey': key, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ hotspots }),
+        });
+        if (!res.ok) return;
+        await fetchUnits(buildingId);
+        setNotification('Hotspots updated.');
     };
 
     const handleAddUnit = async (unitNumber: string, floor: number) => {
@@ -357,6 +376,8 @@ export default function Engine() {
                 setUnitFormError={setUnitFormError}
                 onInteriorUploaded={handleInteriorUploaded}
                 onViewInterior={() => setViewMode('interior')}
+                onSaveHotspots={handleSaveHotspots}
+                onOpenInteriorModal={() => setInteriorModalOpen(true)}
             />
 
             <div className="flex-1 relative">
@@ -404,6 +425,13 @@ export default function Engine() {
                 </div>
 
                 <SuggestUnitsModal open={suggestModalOpen} loading={suggestLoading} saving={saving} error={suggestError} suggestions={suggestions} confirmed={confirmed} onClose={() => !suggestLoading && !saving && setSuggestModalOpen(false)} onToggle={toggleConfirmed} onSave={handleSaveSuggestedUnits} />
+                <InteriorUploadModal
+                    open={interiorModalOpen}
+                    onClose={() => setInteriorModalOpen(false)}
+                    unit={selectedUnitData ?? null}
+                    onUploaded={handleInteriorUploaded}
+                    onError={setUnitFormError}
+                />
 
                 <EngineContextCard location={building?.location} />
                 <EngineViewControls />

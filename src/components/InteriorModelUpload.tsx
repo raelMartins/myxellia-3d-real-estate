@@ -12,11 +12,15 @@ interface InteriorModelUploadProps {
     unitNumber: string;
     onUploaded: () => void;
     onError: (message: string) => void;
-    /** Height in px for the 3D preview area (default 220) */
+    /** Height in px for the 3D preview area (default 220). Ignored when previewFillsSpace is true. */
     previewHeight?: number;
+    /** Called when the 3D preview is shown or hidden (e.g. for modal height transition) */
+    onPreviewVisible?: (visible: boolean) => void;
+    /** When true, use flex layout so the preview area fills remaining space (no scroll). */
+    previewFillsSpace?: boolean;
 }
 
-export default function InteriorModelUpload({ unitId, unitNumber, onUploaded, onError, previewHeight = 220 }: InteriorModelUploadProps) {
+export default function InteriorModelUpload({ unitId, unitNumber, onUploaded, onError, previewHeight = 220, onPreviewVisible, previewFillsSpace = false }: InteriorModelUploadProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [file, setFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -34,12 +38,19 @@ export default function InteriorModelUpload({ unitId, unitNumber, onUploaded, on
         setError(null);
         setFile(f);
         if (previewUrl) URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(URL.createObjectURL(f));
-    }, [previewUrl]);
+        const url = URL.createObjectURL(f);
+        setPreviewUrl(url);
+        onPreviewVisible?.(true);
+    }, [previewUrl, onPreviewVisible]);
 
     useEffect(() => {
         return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
     }, [previewUrl]);
+
+    useEffect(() => {
+        if (!onPreviewVisible) return;
+        onPreviewVisible(!!previewUrl);
+    }, [previewUrl, onPreviewVisible]);
 
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -53,7 +64,8 @@ export default function InteriorModelUpload({ unitId, unitNumber, onUploaded, on
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
         setError(null);
-    }, [previewUrl]);
+        onPreviewVisible?.(false);
+    }, [previewUrl, onPreviewVisible]);
 
     const handleUpload = async () => {
         if (!file) return;
@@ -124,13 +136,13 @@ export default function InteriorModelUpload({ unitId, unitNumber, onUploaded, on
     const dropBg = dragging ? 'rgba(198,166,100,0.06)' : file ? 'rgba(57,255,20,0.04)' : 'rgba(31,31,35,0.3)';
 
     return (
-        <div className="space-y-4">
+        <div className={previewFillsSpace ? 'flex flex-col flex-1 min-h-0 gap-4' : 'space-y-4'}>
             <div
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className="rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all py-10 px-6 text-center"
+                className={`rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all px-6 text-center shrink-0 ${previewFillsSpace ? 'py-5' : 'py-10'}`}
                 style={{ border: dropBorder, background: dropBg, backdropFilter: 'blur(8px)' }}
             >
                 <input
@@ -161,7 +173,10 @@ export default function InteriorModelUpload({ unitId, unitNumber, onUploaded, on
             </div>
 
             {previewUrl && (
-                <div className="relative w-full rounded-xl overflow-hidden glass border border-white/10" style={{ height: previewHeight }}>
+                <div
+                    className={`relative w-full rounded-xl overflow-hidden glass border border-white/10 ${previewFillsSpace ? 'flex-1 min-h-[140px] flex flex-col' : ''}`}
+                    style={previewFillsSpace ? undefined : { height: previewHeight }}
+                >
                     <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 text-[9px] tracking-[0.2em] text-[#C6A664] uppercase font-bold">
                         <Eye size={10} />
                         Preview
@@ -173,26 +188,28 @@ export default function InteriorModelUpload({ unitId, unitNumber, onUploaded, on
                     >
                         <X size={12} className="text-[#94A3B8]" />
                     </button>
-                    <Canvas camera={{ position: [4, 4, 4], fov: 45 }} shadows>
-                        <color attach="background" args={['#0A0A0B']} />
-                        <ambientLight intensity={0.5} />
-                        <directionalLight position={[10, 10, 5]} intensity={1} castShadow />
-                        <Center top>
-                            <ModelLoader url={previewUrl} extension={file?.name.split('.').pop()} />
-                        </Center>
-                        <Environment preset="city" />
-                        <ContactShadows opacity={0.4} scale={20} blur={2.4} />
-                        <OrbitControls makeDefault autoRotate autoRotateSpeed={0.4} />
-                    </Canvas>
+                    <div className={previewFillsSpace ? 'flex-1 min-h-0 w-full' : 'w-full h-full'}>
+                        <Canvas camera={{ position: [4, 4, 4], fov: 45 }} shadows>
+                            <color attach="background" args={['#0A0A0B']} />
+                            <ambientLight intensity={0.5} />
+                            <directionalLight position={[10, 10, 5]} intensity={1} castShadow />
+                            <Center top>
+                                <ModelLoader url={previewUrl} extension={file?.name.split('.').pop()} />
+                            </Center>
+                            <Environment preset="city" />
+                            <ContactShadows opacity={0.4} scale={20} blur={2.4} />
+                            <OrbitControls makeDefault autoRotate autoRotateSpeed={0.4} />
+                        </Canvas>
+                    </div>
                 </div>
             )}
 
             {error && (
-                <p className="text-red-400 text-[10px] tracking-wider uppercase">{error}</p>
+                <p className="text-red-400 text-[10px] tracking-wider uppercase shrink-0">{error}</p>
             )}
 
             {uploading && (
-                <div>
+                <div className="shrink-0">
                     <div className="flex justify-between text-[9px] tracking-widest uppercase text-[#94A3B8] mb-1.5">
                         <span>{uploadProgress >= 90 ? 'Saving unit...' : 'Uploading...'} {uploadProgress}%</span>
                     </div>
@@ -206,7 +223,7 @@ export default function InteriorModelUpload({ unitId, unitNumber, onUploaded, on
                 type="button"
                 onClick={handleUpload}
                 disabled={!file || uploading}
-                className="w-full py-3 rounded-xl bg-[#C6A664] text-[#0A0A0B] text-[10px] tracking-[0.2em] font-bold uppercase flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3 rounded-xl bg-[#C6A664] text-[#0A0A0B] text-[10px] tracking-[0.2em] font-bold uppercase flex items-center justify-center gap-2 disabled:opacity-50 shrink-0"
             >
                 {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={12} />}
                 {uploading ? 'Uploading...' : 'Upload interior model'}

@@ -1,6 +1,8 @@
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Environment, OrbitControls, ContactShadows } from '@react-three/drei';
+import * as THREE from 'three';
 import type { PresetsType } from '@react-three/drei/helpers/environment-assets';
 import AssetLoader from './AssetLoader';
 import BuildingModel from './BuildingModel';
@@ -44,6 +46,37 @@ function InteriorCameraReset() {
     return null;
 }
 
+/** When hotspot placement mode is on, capture click and raycast to get 3D position */
+function HotspotPlacementCapture() {
+    const { gl, camera, scene } = useThree();
+    const raycaster = useRef(new THREE.Raycaster());
+    const mouse = useRef(new THREE.Vector2());
+    const hotspotPlacementMode = useEngineStore((s) => s.hotspotPlacementMode);
+    const setHotspotPlacementMode = useEngineStore((s) => s.setHotspotPlacementMode);
+    const setCapturedHotspotPosition = useEngineStore((s) => s.setCapturedHotspotPosition);
+
+    useEffect(() => {
+        if (!hotspotPlacementMode) return;
+        const el = gl.domElement;
+        const onPointerDown = (e: PointerEvent) => {
+            const rect = el.getBoundingClientRect();
+            mouse.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.current.setFromCamera(mouse.current, camera);
+            const hits = raycaster.current.intersectObjects(scene.children, true);
+            const hit = hits.find((i) => i.object instanceof THREE.Mesh);
+            if (hit?.point) {
+                const p = hit.point;
+                setCapturedHotspotPosition([p.x, p.y, p.z]);
+                setHotspotPlacementMode(false);
+            }
+        };
+        el.addEventListener('pointerdown', onPointerDown);
+        return () => el.removeEventListener('pointerdown', onPointerDown);
+    }, [hotspotPlacementMode, gl, camera, scene, setHotspotPlacementMode, setCapturedHotspotPosition]);
+    return null;
+}
+
 const LIGHTING = {
     morning: { preset: 'dawn' as const, ambient: 0.6, dirColor: '#FFD9A0', dirIntensity: 1.2, dirPos: [8, 20, 8] as [number, number, number] },
     golden: { preset: 'sunset' as const, ambient: 0.4, dirColor: '#FFC060', dirIntensity: 1.8, dirPos: [-15, 12, 10] as [number, number, number] },
@@ -54,8 +87,9 @@ export default function MyxelliaCanvas() {
     const { viewMode, lightingMode, building } = useEngineStore();
     const L = LIGHTING[lightingMode as LightingKey];
 
-    // AI-generated environment: use Pollinations skybox URL when present
-    const hasGeneratedEnv = !!building?.generated_env_url;
+    // AI-generated environment: use only when URL is non-empty (avoids undefined texture in drei)
+    const generatedEnvUrl = building?.generated_env_url?.trim();
+    const hasGeneratedEnv = !!generatedEnvUrl;
 
     // Fallback: keyword-based preset when no generated image
     const envCtx = (building?.env_context || '').toLowerCase();
@@ -89,14 +123,16 @@ export default function MyxelliaCanvas() {
 
             <Suspense fallback={<AssetLoader />}>
                 {viewMode === 'exterior' && (
-                    hasGeneratedEnv ? (
-                        <>
-                            <GroundedSkyboxEnv envUrl={building!.generated_env_url!} />
-                            <Environment files={building!.generated_env_url!} background={false} />
-                        </>
-                    ) : (
-                        <Environment preset={finalPreset} background={true} />
-                    )
+                    <ErrorBoundary fallback={null}>
+                        {hasGeneratedEnv ? (
+                            <>
+                                <GroundedSkyboxEnv envUrl={generatedEnvUrl!} />
+                                <Environment files={generatedEnvUrl!} background={false} />
+                            </>
+                        ) : (
+                            <Environment preset={finalPreset} background={true} />
+                        )}
+                    </ErrorBoundary>
                 )}
 
                 {viewMode === 'exterior' && (
@@ -113,6 +149,7 @@ export default function MyxelliaCanvas() {
                 {viewMode === 'exterior' ? <BuildingModel /> : <InteriorModel />}
                 {viewMode === 'exterior' && <ScreenshotCapture />}
                 {viewMode === 'interior' && <InteriorCameraReset />}
+                {viewMode === 'interior' && <HotspotPlacementCapture />}
             </Suspense>
 
             <OrbitControls
@@ -122,7 +159,7 @@ export default function MyxelliaCanvas() {
                 minPolarAngle={0.1}
                 maxPolarAngle={Math.PI / 2.2}
                 minDistance={viewMode === 'interior' ? 1.5 : 4}
-                maxDistance={viewMode === 'interior' ? 180 : 24}
+                maxDistance={viewMode === 'interior' ? 180 : 144}
                 enablePan={false}
             />
         </Canvas>

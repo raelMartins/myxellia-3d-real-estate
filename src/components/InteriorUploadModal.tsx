@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import InteriorModelUpload from './InteriorModelUpload';
@@ -16,6 +17,8 @@ interface InteriorUploadModalProps {
 export default function InteriorUploadModal({
     open, onClose, unit, onUploaded, onError,
 }: InteriorUploadModalProps) {
+    const [previewVisible, setPreviewVisible] = useState(false);
+
     if (!open) return null;
 
     const handleUploaded = () => {
@@ -29,15 +32,20 @@ export default function InteriorUploadModal({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-md"
                 onClick={onClose}
             >
                 <motion.div
                     initial={{ scale: 0.96, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
+                    animate={{
+                        scale: 1,
+                        opacity: 1,
+                        height: previewVisible ? '80vh' : 'min(340px, 80vh)',
+                    }}
                     exit={{ scale: 0.96, opacity: 0 }}
+                    transition={{ height: { type: 'tween', duration: 0.35, ease: [0.25, 0.1, 0.25, 1] } }}
                     onClick={(e) => e.stopPropagation()}
-                    className="glass-heavy rounded-2xl border border-white/10 flex flex-col w-full max-w-4xl h-[calc(100vh-2rem)] max-h-[880px] overflow-hidden shadow-2xl"
+                    className="glass-heavy rounded-2xl border border-white/10 flex flex-col w-full max-w-[750px] max-h-[80vh] overflow-hidden shadow-2xl"
                 >
                     <div className="flex items-center justify-between shrink-0 px-6 py-5 border-b border-white/5">
                         <h3 className="font-serif-display text-xl text-[#F5F7FA]">
@@ -47,14 +55,16 @@ export default function InteriorUploadModal({
                             <X size={20} />
                         </button>
                     </div>
-                    <div className="flex-1 overflow-y-auto p-6">
+                    <div className="flex-1 min-h-0 overflow-hidden p-6 flex flex-col">
                         {unit ? (
                             <InteriorModelUpload
                                 unitId={unit.id}
                                 unitNumber={unit.unit_number}
                                 onUploaded={handleUploaded}
                                 onError={onError}
-                                previewHeight={420}
+                                previewHeight={320}
+                                onPreviewVisible={setPreviewVisible}
+                                previewFillsSpace
                             />
                         ) : (
                             <p className="text-[#94A3B8] text-sm">Select a unit first.</p>

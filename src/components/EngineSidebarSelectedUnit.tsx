@@ -1,9 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Trash2, Layout, Eye } from 'lucide-react';
+import { Lock, Trash2, Layout, Eye, MapPin } from 'lucide-react';
 import AdminUnitForm from './AdminUnitForm';
-import InteriorUploadModal from './InteriorUploadModal';
+import AddHotspotModal from './AddHotspotModal';
 import { formatCentsToCurrency } from '../lib/currency';
+import { useEngineStore } from '../store/engine.store';
 import type { Database } from '../lib/database.types';
+import type { InteriorHotspot } from '../lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
 
@@ -24,8 +26,7 @@ interface EngineSidebarSelectedUnitProps {
     currentStatus: string | null;
     unitFormError: string | null;
     isAdmin: boolean;
-    interiorModalOpen: boolean;
-    setInteriorModalOpen: (open: boolean) => void;
+    onOpenInteriorModal: () => void;
     deleteSubmitting: boolean;
     onReserve: () => void;
     onUnitSaved: () => void;
@@ -34,6 +35,7 @@ interface EngineSidebarSelectedUnitProps {
     setUnitFormError: (msg: string | null) => void;
     onInteriorUploaded: () => void;
     onViewInterior: () => void;
+    onSaveHotspots: (unitId: string, hotspots: InteriorHotspot[]) => void;
     setDeleteSubmitting: (v: boolean) => void;
 }
 
@@ -43,8 +45,7 @@ export default function EngineSidebarSelectedUnit({
     currentStatus,
     unitFormError,
     isAdmin,
-    interiorModalOpen,
-    setInteriorModalOpen,
+    onOpenInteriorModal,
     deleteSubmitting,
     onReserve,
     onUnitSaved,
@@ -53,8 +54,11 @@ export default function EngineSidebarSelectedUnit({
     setUnitFormError,
     onInteriorUploaded,
     onViewInterior,
+    onSaveHotspots,
     setDeleteSubmitting,
 }: EngineSidebarSelectedUnitProps) {
+    const { hotspotPlacementMode, setHotspotPlacementMode, capturedHotspotPosition, setCapturedHotspotPosition } = useEngineStore();
+
     return (
         <>
             <AnimatePresence mode="wait">
@@ -94,7 +98,7 @@ export default function EngineSidebarSelectedUnit({
                                             </button>
                                             <button
                                                 type="button"
-                                                onClick={() => setInteriorModalOpen(true)}
+                                                onClick={onOpenInteriorModal}
                                                 className="py-2.5 rounded-xl border border-[#C6A664]/40 text-[#C6A664] text-[10px] tracking-[0.2em] uppercase font-medium flex items-center justify-center gap-1.5 hover:bg-[#C6A664]/10 transition-colors"
                                             >
                                                 <Layout size={12} />
@@ -104,12 +108,44 @@ export default function EngineSidebarSelectedUnit({
                                     ) : (
                                         <button
                                             type="button"
-                                            onClick={() => setInteriorModalOpen(true)}
+                                            onClick={onOpenInteriorModal}
                                             className="w-full py-2.5 rounded-xl border border-[#C6A664]/40 text-[#C6A664] text-[10px] tracking-[0.2em] uppercase font-medium flex items-center justify-center gap-2 hover:bg-[#C6A664]/10 transition-colors"
                                         >
                                             <Layout size={12} />
                                             Add interior view
                                         </button>
+                                    )}
+                                    {selectedUnitData.internal_model_url && (
+                                        <div className="space-y-2">
+                                            <div className="text-[9px] tracking-[0.2em] text-[#C6A664] uppercase">Hotspots</div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setHotspotPlacementMode(true)}
+                                                className="w-full py-2 rounded-xl border border-white/10 text-[#94A3B8] text-[10px] tracking-wider uppercase flex items-center justify-center gap-1.5 hover:bg-white/5"
+                                            >
+                                                <MapPin size={11} />
+                                                {hotspotPlacementMode ? 'Click in view to place…' : 'Add hotspot'}
+                                            </button>
+                                            {(selectedUnitData.hotspots?.length ?? 0) > 0 && (
+                                                <ul className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
+                                                    {selectedUnitData.hotspots!.map((h) => (
+                                                        <li key={h.id} className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg bg-white/5">
+                                                            <span className="text-[11px] text-[#F5F7FA] truncate">{h.title}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const next = selectedUnitData.hotspots!.filter((x) => x.id !== h.id);
+                                                                    onSaveHotspots(selectedUnitData.id, next);
+                                                                }}
+                                                                className="p-1 rounded text-red-400 hover:bg-red-500/20"
+                                                            >
+                                                                <Trash2 size={10} />
+                                                            </button>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
                                     )}
                                     <div className="max-h-[50vh] overflow-y-auto custom-scrollbar pr-1 -mr-1">
                                         <AdminUnitForm
@@ -164,12 +200,23 @@ export default function EngineSidebarSelectedUnit({
                     </motion.div>
                 )}
             </AnimatePresence>
-            <InteriorUploadModal
-                open={interiorModalOpen}
-                onClose={() => setInteriorModalOpen(false)}
-                unit={selectedUnitData ?? null}
-                onUploaded={onInteriorUploaded}
-                onError={setUnitFormError}
+            <AddHotspotModal
+                open={capturedHotspotPosition !== null}
+                position={capturedHotspotPosition}
+                onSave={(data) => {
+                    if (!selectedUnitData?.id || !capturedHotspotPosition) return;
+                    const newHotspot: InteriorHotspot = {
+                        id: crypto.randomUUID(),
+                        position: capturedHotspotPosition,
+                        title: data.title,
+                        material: data.material || undefined,
+                        description: data.description || undefined,
+                    };
+                    const next = [...(selectedUnitData.hotspots ?? []), newHotspot];
+                    onSaveHotspots(selectedUnitData.id, next);
+                    setCapturedHotspotPosition(null);
+                }}
+                onCancel={() => setCapturedHotspotPosition(null)}
             />
         </>
     );
