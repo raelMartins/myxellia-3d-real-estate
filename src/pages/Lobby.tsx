@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth.store';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
-import { LogOut, ArrowRight, Activity, Users, TrendingUp, MapPin, Layers, Plus } from 'lucide-react';
+import { LogOut, ArrowRight, Activity, Users, TrendingUp, MapPin, Layers, Plus, ImagePlus } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 import { formatCentsToCurrency } from '../lib/currency';
 
@@ -166,14 +166,23 @@ export default function Lobby() {
 
                     <div className="flex items-center gap-4">
                         {isAdmin && (
-                            <button
-                                onClick={() => navigate('/deploy')}
-                                className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] tracking-widest uppercase font-semibold transition-all duration-200 hover:opacity-90"
-                                style={{ background: 'rgba(198,166,100,0.12)', border: '1px solid rgba(198,166,100,0.35)', color: '#C6A664' }}
-                            >
-                                <Plus size={12} />
-                                Deploy New Project
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => navigate('/skyboxes')}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] tracking-widest uppercase font-semibold transition-all duration-200 hover:opacity-90 border border-white/15 text-[#94A3B8] hover:text-[#F5F7FA] hover:border-white/25"
+                                >
+                                    <ImagePlus size={12} />
+                                    Skyboxes
+                                </button>
+                                <button
+                                    onClick={() => navigate('/deploy')}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] tracking-widest uppercase font-semibold transition-all duration-200 hover:opacity-90"
+                                    style={{ background: 'rgba(198,166,100,0.12)', border: '1px solid rgba(198,166,100,0.35)', color: '#C6A664' }}
+                                >
+                                    <Plus size={12} />
+                                    Deploy New Project
+                                </button>
+                            </>
                         )}
                         <div className="text-right hidden sm:block">
                             <div className="text-sm font-light text-[#F5F7FA]">{profile?.full_name ?? 'Authorized User'}</div>

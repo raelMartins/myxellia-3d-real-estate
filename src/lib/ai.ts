@@ -1,5 +1,5 @@
 /**
- * AI feature API: Pollinations (env image) + Gemini (unit suggestions)
+ * AI feature API: Gemini (project details, unit suggestions). Skybox env is from uploaded HDR only.
  * Calls Supabase Edge Functions.
  */
 
@@ -16,20 +16,6 @@ const getAuthHeaders = () => {
     Authorization: `Bearer ${key || ''}`,
   };
 };
-
-/** Generate environment skybox image via Pollinations and store URL on building */
-export async function generateEnvImage(buildingId: string, envContext: string): Promise<{ url: string }> {
-  const res = await fetch(`${getFunctionsUrl()}/generate-env-image`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ building_id: buildingId, env_context: envContext }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Failed to generate environment image');
-  }
-  return res.json();
-}
 
 export interface ProjectData {
   name: string;

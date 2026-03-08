@@ -10,6 +10,7 @@ import SuggestUnitsModal from '../components/SuggestUnitsModal';
 import InteriorUploadModal from '../components/InteriorUploadModal';
 import EngineViewControls from '../components/EngineViewControls';
 import EngineContextCard from '../components/EngineContextCard';
+import SetDefaultSkyboxButton from '../components/SetDefaultSkyboxButton';
 import { useEngineStore } from '../store/engine.store';
 import { useAuthStore } from '../store/auth.store';
 import { suggestUnits, type UnitSuggestion } from '../lib/ai';
@@ -406,17 +407,28 @@ export default function Engine() {
                     {viewMode === 'exterior' && (
                         <>
                             {skyboxEnvironments.length > 0 && (
-                                <div className="glass-heavy px-3 py-2 rounded-full border border-white/10 shadow-2xl">
+                                <div className="glass-heavy px-3 py-2 rounded-full border border-white/10 shadow-2xl flex items-center gap-2">
                                     <select
                                         value={selectedSkyboxUrl ?? ''}
-                                        onChange={(e) => setSelectedSkyboxUrl(e.target.value || null)}
+                                        onChange={(e) => {
+                                            const v = e.target.value;
+                                            setSelectedSkyboxUrl(v === '' ? null : v);
+                                        }}
                                         className="bg-transparent text-[10px] tracking-widest uppercase font-bold text-[#F5F7FA] focus:outline-none cursor-pointer max-w-[180px]"
                                     >
                                         <option value="">Default skybox</option>
+                                        <option value="__none__">No skybox</option>
                                         {skyboxEnvironments.map((s) => (
                                             <option key={s.id} value={s.file_url}>{s.label}</option>
                                         ))}
                                     </select>
+                                    {isAdmin && selectedSkyboxUrl && selectedSkyboxUrl !== '__none__' && buildingId && (
+                                        <SetDefaultSkyboxButton
+                                            buildingId={buildingId}
+                                            url={selectedSkyboxUrl}
+                                            onSaved={() => { if (buildingId) fetchBuilding(buildingId); setNotification('Default skybox updated.'); }}
+                                        />
+                                    )}
                                 </div>
                             )}
                             <div className="glass-heavy p-1.5 rounded-full border border-white/10 flex items-center gap-1 shadow-2xl">

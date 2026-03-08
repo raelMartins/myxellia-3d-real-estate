@@ -1,11 +1,10 @@
-import { useRef, useMemo, Suspense } from 'react';
+import { Suspense, useRef, useLayoutEffect, useState } from 'react';
 import { useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGLTF, Html, Center, useFBX } from '@react-three/drei';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { useEngineStore } from '../store/engine.store';
 import { ErrorBoundary } from 'react-error-boundary';
-import { getGroundColor } from '../lib/groundColor';
 import UnitBox, { type UnitMesh } from './UnitBox';
 import type { Database } from '../lib/database.types';
 
@@ -57,43 +56,47 @@ export function ModelLoader({ url, extension }: { url: string; extension?: strin
     );
 }
 
-/** Radial gradient texture (white center → transparent edge) for hero ground alpha */
-function useRadialAlphaTexture(size = 256) {
-    return useMemo(() => {
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d')!;
-        const cx = size / 2;
-        const r = cx;
-        const gradient = ctx.createRadialGradient(cx, cx, 0, cx, cx, r);
-        gradient.addColorStop(0, 'rgba(255,255,255,1)');
-        gradient.addColorStop(0.5, 'rgba(255,255,255,0.6)');
-        gradient.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, size, size);
-        const tex = new THREE.CanvasTexture(canvas);
-        tex.needsUpdate = true;
-        return tex;
-    }, [size]);
-}
+const BASE_HEIGHT = 0.04;
 
-function HeroGround({ envContext }: { envContext: string | null | undefined }) {
-    const color = getGroundColor(envContext);
-    const alphaMap = useRadialAlphaTexture(128);
-    const geometry = useMemo(() => new THREE.CircleGeometry(18, 64), []);
+function ModelWithRedBase({ url, extension }: { url: string; extension?: string }) {
+    const modelRef = useRef<THREE.Group>(null);
+    const [base, setBase] = useState<{ width: number; depth: number; x: number; y: number; z: number } | null>(null);
+    const [groundOffset, setGroundOffset] = useState(0);
+
+    useLayoutEffect(() => {
+        const group = modelRef.current;
+        if (!group) return;
+        const box = new THREE.Box3().setFromObject(group);
+        const size = new THREE.Vector3();
+        const center = new THREE.Vector3();
+        box.getSize(size);
+        box.getCenter(center);
+        if (size.x > 0 && size.z > 0) {
+            setBase({
+                width: size.x,
+                depth: size.z,
+                x: center.x,
+                y: box.min.y - BASE_HEIGHT / 2,
+                z: center.z,
+            });
+            setGroundOffset(BASE_HEIGHT - box.min.y);
+        }
+    }, [url]);
+
     return (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.9, 0]} receiveShadow geometry={geometry}>
-            <meshStandardMaterial
-                color={color}
-                roughness={0.95}
-                metalness={0.05}
-                transparent
-                opacity={0.92}
-                alphaMap={alphaMap}
-                depthWrite={false}
-            />
-        </mesh>
+        <group position={[0, groundOffset, 0]}>
+            <group ref={modelRef}>
+                <Center top>
+                    <ModelLoader url={url} extension={extension} />
+                </Center>
+            </group>
+            {base && (
+                <mesh position={[base.x, base.y, base.z]}>
+                    <boxGeometry args={[base.width, BASE_HEIGHT, base.depth]} />
+                    <meshStandardMaterial color="#E53935" roughness={0.8} metalness={0} />
+                </mesh>
+            )}
+        </group>
     );
 }
 
@@ -145,9 +148,7 @@ export default function BuildingModel() {
                 </Html>
             }>
                 {building?.model_url ? (
-                    <Center top>
-                        <ModelLoader url={building.model_url} />
-                    </Center>
+                    <ModelWithRedBase url={building.model_url} />
                 ) : (
                     <PlaceholderBuilding />
                 )}
@@ -157,15 +158,6 @@ export default function BuildingModel() {
             {displayUnits.map((u: DisplayUnit) => (
                 <UnitBox key={u.id} unit={u} />
             ))}
-
-            {/* Hero ground: circle under building that fades into skybox */}
-            <HeroGround envContext={building?.env_context} />
-
-            {/* Ground plane (shadow receiver) — minimal */}
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.91, 0]} receiveShadow>
-                <planeGeometry args={[14, 14]} />
-                <meshStandardMaterial color="#0A0A0B" roughness={1} metalness={0} />
-            </mesh>
         </group>
     );
 }

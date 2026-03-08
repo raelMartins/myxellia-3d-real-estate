@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useRef } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Environment, OrbitControls, ContactShadows } from '@react-three/drei';
+import { Environment, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import type { PresetsType } from '@react-three/drei/helpers/environment-assets';
 import AssetLoader from './AssetLoader';
@@ -87,7 +87,9 @@ export default function MyxelliaCanvas() {
     const { viewMode, lightingMode, building, selectedSkyboxUrl } = useEngineStore();
     const L = LIGHTING[lightingMode as LightingKey];
 
-    const envUrl = (selectedSkyboxUrl ?? building?.generated_env_url)?.trim() || null;
+    const envUrl = selectedSkyboxUrl === '__none__'
+        ? null
+        : (selectedSkyboxUrl ?? building?.generated_env_url)?.trim() || null;
     const hasCustomEnv = !!envUrl;
 
     // Fallback: keyword-based preset when no generated image
@@ -107,7 +109,7 @@ export default function MyxelliaCanvas() {
             gl={{ preserveDrawingBuffer: true, antialias: true, alpha: false }}
             shadows
         >
-            <color attach="background" args={['#0A0A0B']} />
+            {viewMode === 'exterior' && !hasCustomEnv && <color attach="background" args={['#0A0A0B']} />}
 
             {viewMode === 'exterior' && useCloudFog && !hasCustomEnv && <fog attach="fog" args={['#141416', 10, 80]} />}
 
@@ -124,25 +126,13 @@ export default function MyxelliaCanvas() {
                 {viewMode === 'exterior' && (
                     <ErrorBoundary fallback={null}>
                         {hasCustomEnv && envUrl ? (
-                            <>
-                                <GroundedSkyboxEnv envUrl={envUrl} />
-                                <Environment files={envUrl} background={false} />
-                            </>
+                            envUrl.toLowerCase().match(/\.(hdr|hdri)(\?|$)/)
+                                ? <GroundedSkyboxEnv envUrl={envUrl} />
+                                : <Environment files={envUrl} background />
                         ) : (
                             <Environment preset={finalPreset} background={true} />
                         )}
                     </ErrorBoundary>
-                )}
-
-                {viewMode === 'exterior' && (
-                    <ContactShadows
-                        resolution={1024}
-                        scale={18}
-                        blur={2}
-                        opacity={lightingMode === 'night' ? 0.8 : 0.5}
-                        far={10}
-                        color="#000000"
-                    />
                 )}
 
                 {viewMode === 'exterior' ? <BuildingModel /> : <InteriorModel />}
@@ -156,7 +146,7 @@ export default function MyxelliaCanvas() {
                 enableDamping
                 dampingFactor={0.06}
                 minPolarAngle={0.1}
-                maxPolarAngle={Math.PI / 2.2}
+                maxPolarAngle={Math.PI / 2}
                 minDistance={viewMode === 'interior' ? 1.5 : 4}
                 maxDistance={viewMode === 'interior' ? 180 : 144}
                 enablePan={false}

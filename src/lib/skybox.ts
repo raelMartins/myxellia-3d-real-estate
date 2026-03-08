@@ -22,6 +22,26 @@ export async function fetchSkyboxEnvironments(getToken: () => string | undefined
     return Array.isArray(data) ? data : [];
 }
 
+export async function fetchSkyboxById(
+    id: string,
+    getToken: () => string | undefined
+): Promise<SkyboxRow | null> {
+    const url = supabaseUrl();
+    const key = supabaseKey();
+    const token = getToken();
+    if (!url || !key) return null;
+    const res = await fetch(`${url}/rest/v1/skybox_environments?id=eq.${id}&select=*`, {
+        headers: {
+            'apikey': key,
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+            'Accept': 'application/json',
+        },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data) && data[0] ? data[0] : null;
+}
+
 export async function uploadSkyboxEnvironment(
     file: File,
     label: string,
@@ -60,4 +80,23 @@ export async function uploadSkyboxEnvironment(
     if (!insertRes.ok) return null;
     const rows = await insertRes.json();
     return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+export async function deleteSkyboxEnvironment(
+    id: string,
+    getToken: () => string | undefined
+): Promise<boolean> {
+    const url = supabaseUrl();
+    const key = supabaseKey();
+    const token = getToken();
+    if (!url || !key || !token) return false;
+    const res = await fetch(`${url}/rest/v1/skybox_environments?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: {
+            'apikey': key,
+            'Authorization': `Bearer ${token}`,
+            'Prefer': 'return=minimal',
+        },
+    });
+    return res.ok;
 }

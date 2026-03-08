@@ -7,6 +7,8 @@ import Lobby from './pages/Lobby';
 import Engine from './pages/Engine';
 import PropertyDetail from './pages/PropertyDetail';
 import DeployProject from './pages/DeployProject';
+import Skyboxes from './pages/Skyboxes';
+import SkyboxPreview from './pages/SkyboxPreview';
 
 /* ──────────────────────────────────────────────────
    Cinematic easing shared across auth page
@@ -269,6 +271,8 @@ export default function App() {
         <Route path="/detail/:buildingId" element={<PropertyDetailKeyed />} />
         <Route path="/engine/:buildingId" element={<EngineKeyed />} />
         <Route path="/deploy" element={<DeployProject />} />
+        <Route path="/skyboxes" element={<Skyboxes />} />
+        <Route path="/skyboxes/preview/:id" element={<SkyboxPreview />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
