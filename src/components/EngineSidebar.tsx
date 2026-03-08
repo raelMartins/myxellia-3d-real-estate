@@ -3,13 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Plus, PanelLeft, PanelLeftClose } from 'lucide-react';
 import EngineSidebarSelectedUnit from './EngineSidebarSelectedUnit';
+import AddUnitsModal from './AddUnitsModal';
 import { useEngineStore } from '../store/engine.store';
 import { formatCentsToCurrency } from '../lib/currency';
 import type { Database } from '../lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
 
-const ease = [0.2, 0.8, 0.2, 1] as const;
 const SIDEBAR_WIDTH_EXPANDED = 320;
 const SIDEBAR_COLLAPSED_SIZE = 48;
 const INSET = 16;
@@ -17,11 +17,6 @@ const STATUS_DOT: Record<string, string> = {
     available: 'status-available',
     pending: 'status-pending',
     sold: 'status-sold',
-};
-const STATUS_LABEL: Record<string, string> = {
-    available: 'Available',
-    pending: 'Pending',
-    sold: 'Sold',
 };
 
 interface EngineSidebarProps {
@@ -49,7 +44,7 @@ export default function EngineSidebar({
     isAdmin,
     onReserve,
     onUnitSaved,
-    onAddUnit,
+    onAddUnit: _onAddUnit,
     onDeleteUnit,
     setUnitFormError,
     onInteriorUploaded,
@@ -60,12 +55,10 @@ export default function EngineSidebar({
     const { buildingId } = useParams();
     const navigate = useNavigate();
     const {
-        building, units, selectedUnit, hoveredUnit, unitStatuses,
+        building, selectedUnit, hoveredUnit, unitStatuses,
         setSelectedUnit, setHoveredUnit,
     } = useEngineStore();
-    const [addUnitNumber, setAddUnitNumber] = useState('');
-    const [addFloor, setAddFloor] = useState(1);
-    const [addSubmitting, setAddSubmitting] = useState(false);
+    const [addUnitsModalOpen, setAddUnitsModalOpen] = useState(false);
     const [deleteSubmitting, setDeleteSubmitting] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
     const [expandedHeight, setExpandedHeight] = useState(
@@ -199,37 +192,15 @@ export default function EngineSidebar({
                             {isAdmin && (
                                 <div className="space-y-4 pt-4 border-t border-white/5">
                                     <h4 className="text-[10px] tracking-[0.3em] uppercase text-[#C6A664] font-medium">Add unit</h4>
-                                    <div className="grid grid-cols-[1fr,72px] gap-2">
-                                        <input
-                                            type="text"
-                                            placeholder="Unit number"
-                                            value={addUnitNumber}
-                                            onChange={(e) => setAddUnitNumber(e.target.value)}
-                                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-[#F5F7FA] placeholder:text-[#64748B] focus:border-[#C6A664]/50 focus:outline-none"
-                                        />
-                                        <input
-                                            type="number"
-                                            min={1}
-                                            value={addFloor}
-                                            onChange={(e) => setAddFloor(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-[#F5F7FA] focus:border-[#C6A664]/50 focus:outline-none"
-                                        />
-                                    </div>
                                     <button
                                         type="button"
-                                        onClick={async () => {
-                                            setAddSubmitting(true);
-                                            setUnitFormError(null);
-                                            await onAddUnit(addUnitNumber, addFloor);
-                                            setAddUnitNumber('');
-                                            setAddSubmitting(false);
-                                        }}
-                                        disabled={!addUnitNumber.trim() || addSubmitting}
-                                        className="w-full py-2.5 rounded-xl border border-[#C6A664]/40 text-[#C6A664] text-[10px] tracking-[0.2em] uppercase font-medium flex items-center justify-center gap-2 hover:bg-[#C6A664]/10 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                                        onClick={() => setAddUnitsModalOpen(true)}
+                                        className="w-full py-2.5 rounded-xl border border-[#C6A664]/40 text-[#C6A664] text-[10px] tracking-[0.2em] uppercase font-medium flex items-center justify-center gap-2 hover:bg-[#C6A664]/10 transition-colors"
                                     >
                                         <Plus size={12} />
-                                        Add unit box
+                                        Add Units
                                     </button>
+                                    <AddUnitsModal open={addUnitsModalOpen} onClose={() => setAddUnitsModalOpen(false)} />
                                 </div>
                             )}
                         </div>
