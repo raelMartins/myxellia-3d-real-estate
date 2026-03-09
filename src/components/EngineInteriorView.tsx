@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Layers } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 

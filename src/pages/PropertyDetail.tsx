@@ -20,13 +20,14 @@ export default function PropertyDetail() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!buildingId) return;
+        const id = buildingId;
+        if (!id) return;
         setLoading(true);
         setBldg(null);
         let cancelled = false;
         async function loadBldg() {
             try {
-                const { data, error } = await supabase.from('buildings').select('*').eq('id', buildingId).single();
+                const { data, error } = await supabase.from('buildings').select('*').eq('id', id!).single();
                 if (error) throw error;
                 if (!cancelled) setBldg(data);
             } catch {

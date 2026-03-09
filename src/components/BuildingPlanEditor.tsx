@@ -22,10 +22,6 @@ export default function BuildingPlanEditor({ initialPlan, onPlanChange }: Buildi
     const [sections, setSections] = useState<SectionPlanSection[]>(initialPlan?.sections ?? []);
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
 
-    const notify = useCallback(() => {
-        onPlanChange({ baseWidth, baseDepth, sections });
-    }, [baseWidth, baseDepth, sections, onPlanChange]);
-
     const handleAddSection = useCallback(
         (sides: number) => {
             const id = `section-${Date.now()}`;

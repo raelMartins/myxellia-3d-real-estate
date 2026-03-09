@@ -26,7 +26,7 @@ interface BuildingPlanModalProps {
     onApply: (payload: BuildingPlanApplyPayload) => Promise<void>;
 }
 
-export default function BuildingPlanModal({ open, onClose, buildingId, building, oldUnits, onApply }: BuildingPlanModalProps) {
+export default function BuildingPlanModal({ open, onClose, buildingId: _buildingId, building, oldUnits, onApply }: BuildingPlanModalProps) {
     const [step, setStep] = useState(0);
     const [plan, setPlan] = useState<SectionPlan | null>(building?.section_plan ?? null);
     const [newSlots, setNewSlots] = useState<NewUnitSlot[]>([]);

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Sunset, Moon, BellRing, Sparkles, Loader2 } from 'lucide-react';
-import { ErrorBoundary } from 'react-error-boundary';
+import { ErrorBoundary, type FallbackProps } from 'react-error-boundary';
 import MyxelliaCanvas from '../components/MyxelliaCanvas';
 import EngineSidebar from '../components/EngineSidebar';
 import EngineInteriorView from '../components/EngineInteriorView';
@@ -33,7 +33,7 @@ const LIGHTING_OPTS: { mode: LightingMode; icon: typeof Sun; label: string }[] =
     { mode: 'night', icon: Moon, label: 'Night' },
 ];
 
-function EngineErrorFallback({ resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
+function EngineErrorFallback({ resetErrorBoundary }: FallbackProps) {
     const navigate = useNavigate();
     const { buildingId } = useParams();
     return (
@@ -492,7 +492,7 @@ export default function Engine() {
         }
 
         const existingNumbers = new Set(units.map((u: UnitRow) => u.unit_number));
-        const unitNumberFor = (slot: (typeof newSlots)[0], index: number) => {
+        const unitNumberFor = (slot: (typeof newSlots)[0], _index: number) => {
             const base = `${slot.sectionLabel.replace(/\s+/g, '-')}-${slot.floorIndex + 1}`;
             let name = base;
             let n = 0;

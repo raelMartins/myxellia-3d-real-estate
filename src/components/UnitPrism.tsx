@@ -28,6 +28,7 @@ const STATUS_EMISSIVE: Record<string, string> = {
     sold: '#6A0000',
 };
 const GROUND_Y = -0.9;
+type R3FPointerEvent = { stopPropagation: () => void; intersections: Array<{ point: THREE.Vector3 }>; nativeEvent?: PointerEvent & { pointerId?: number } };
 export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismMesh; allowDrag?: boolean }) {
     const meshRef = useRef<THREE.Mesh>(null!);
     const groupRef = useRef<THREE.Group>(null!);
@@ -81,6 +82,10 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
         const geom = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
         geom.rotateX(-Math.PI / 2);
         geom.translate(0, height / 2, 0);
+        geom.computeBoundingBox();
+        const center = new THREE.Vector3();
+        geom.boundingBox!.getCenter(center);
+        geom.translate(-center.x, -center.y, -center.z);
         return geom;
     }, [unit.footprint, width, height, depth]);
     const baseColor = useMemo(() => new THREE.Color(STATUS_COLOR[status]), [status]);
@@ -120,10 +125,10 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
         }
     }, [unit.id, setSelectedUnit, setViewMode]);
     const canEdit = allowDrag && isAdmin && !!unitPositionHandler;
-    const onPointerDown = useCallback((e: THREE.Event) => {
+    const onPointerDown = useCallback((e: R3FPointerEvent) => {
         if (!canEdit) return;
         e.stopPropagation();
-        const ne = (e as unknown as { nativeEvent?: PointerEvent }).nativeEvent;
+        const ne = e.nativeEvent;
         if (ne) {
             ne.preventDefault();
             ne.stopImmediatePropagation();
@@ -174,7 +179,7 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
             el.releasePointerCapture(pointerId);
             document.body.style.cursor = 'auto';
             dragJustEndedRef.current = true;
-            const finalPos = [...dragPositionRef.current];
+            const finalPos = [...dragPositionRef.current] as [number, number, number];
             unitPositionHandler(unit.id, finalPos)
                 .then(() => setIsDragging(false))
                 .catch(() => setIsDragging(false));
@@ -188,8 +193,8 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
     ), [storeUnits, unit.id]);
     const handleResizeEnd = useCallback(() => {
         if (!unitSizeHandler || !unitPositionHandler) return;
-        const finalSize = [...resizeSize];
-        const finalPos = [...resizePosition];
+        const finalSize = [...resizeSize] as [number, number, number];
+        const finalPos = [...resizePosition] as [number, number, number];
         Promise.all([
             unitSizeHandler(unit.id, finalSize),
             unitPositionHandler(unit.id, finalPos),
@@ -208,7 +213,7 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
                 scale={[scale, scale, scale]}
                 onClick={handleClick}
                 onPointerDown={onPointerDown}
-                onPointerOver={(e) => {
+                onPointerOver={(e: R3FPointerEvent) => {
                     e.stopPropagation();
                     setHoveredUnit(unit.id);
                     if (!isDragging && !isResizing) document.body.style.cursor = canEdit ? 'grab' : 'pointer';

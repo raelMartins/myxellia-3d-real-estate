@@ -26,6 +26,8 @@ const STATUS_EMISSIVE: Record<string, string> = {
 /** Match BuildingModel: hero ground at y = -0.9; box center must be above ground + half height */
 const GROUND_Y = -0.9;
 
+type R3FPointerEvent = { stopPropagation: () => void; intersections: Array<{ point: THREE.Vector3 }>; nativeEvent?: PointerEvent & { pointerId?: number } };
+
 export default function UnitBox({ unit }: { unit: UnitMesh }) {
     const meshRef = useRef<THREE.Mesh>(null!);
     const groupRef = useRef<THREE.Group>(null!);
@@ -92,10 +94,10 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
         }
     };
 
-    const onPointerDown = (e: THREE.Event) => {
+    const onPointerDown = (e: R3FPointerEvent) => {
         if (!isAdmin || !unitPositionHandler) return;
         e.stopPropagation();
-        const ne = (e as unknown as { nativeEvent?: PointerEvent }).nativeEvent;
+        const ne = e.nativeEvent;
         if (ne) {
             ne.preventDefault();
             ne.stopImmediatePropagation();
@@ -103,7 +105,7 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
         const hit = e.intersections[0]?.point;
         if (!hit || !groupRef.current) return;
         const el = gl.domElement;
-        const pointerId = (e as unknown as { nativeEvent?: { pointerId: number } }).nativeEvent?.pointerId ?? 0;
+        const pointerId = e.nativeEvent?.pointerId ?? 0;
         groupRef.current.getWorldPosition(groupWorldPosRef.current);
         offsetRef.current.copy(hit).sub(groupWorldPosRef.current);
         camera.getWorldDirection(cameraDirRef.current);
@@ -146,7 +148,7 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
             el.releasePointerCapture(pointerId);
             document.body.style.cursor = 'auto';
             dragJustEndedRef.current = true;
-            const finalPos = [...dragPositionRef.current];
+            const finalPos = [...dragPositionRef.current] as [number, number, number];
             unitPositionHandler(unit.id, finalPos)
                 .then(() => setIsDragging(false))
                 .catch(() => setIsDragging(false));
@@ -164,8 +166,8 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
 
     const handleResizeEnd = () => {
         if (!unitSizeHandler || !unitPositionHandler) return;
-        const finalSize = [...resizeSize];
-        const finalPos = [...resizePosition];
+        const finalSize = [...resizeSize] as [number, number, number];
+        const finalPos = [...resizePosition] as [number, number, number];
         Promise.all([
             unitSizeHandler(unit.id, finalSize),
             unitPositionHandler(unit.id, finalPos),
@@ -180,7 +182,7 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
                 scale={[scale, scale, scale]}
                 onClick={handleClick}
                 onPointerDown={onPointerDown}
-                onPointerOver={(e) => { e.stopPropagation(); setHoveredUnit(unit.id); if (!isDragging && !isResizing) document.body.style.cursor = isAdmin ? 'grab' : 'pointer'; }}
+                onPointerOver={(e: R3FPointerEvent) => { e.stopPropagation(); setHoveredUnit(unit.id); if (!isDragging && !isResizing) document.body.style.cursor = isAdmin ? 'grab' : 'pointer'; }}
                 onPointerOut={() => { setHoveredUnit(null); if (!isDragging && !isResizing) document.body.style.cursor = 'auto'; }}
                 castShadow
                 receiveShadow

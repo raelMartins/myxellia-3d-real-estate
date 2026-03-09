@@ -8,6 +8,7 @@ const MIN_SIZE = 0.5;
 const L_LENGTH = 0.24;
 const L_THICKNESS = 0.028;
 const CORNER_OFFSET = 0.045;
+type R3FPointerEvent = { stopPropagation: () => void; intersections: Array<{ point: THREE.Vector3 }>; nativeEvent?: PointerEvent };
 const CORNER_SIGNS: [number, number, number][] = [
     [-1, -1, -1], [1, -1, -1], [1, -1, 1], [-1, -1, 1],
     [-1, 1, -1], [1, 1, -1], [1, 1, 1], [-1, 1, 1],
@@ -38,7 +39,7 @@ function rightAngleAxes(viewDir: THREE.Vector3): [THREE.Vector3, THREE.Vector3] 
 }
 
 export default function UnitBoxCornerHandles({
-    unit,
+    unit: _unit,
     displaySize,
     displayPosition,
     visible,
@@ -89,9 +90,9 @@ export default function UnitBoxCornerHandles({
         materialRef.current.opacity = opacityRef.current;
     });
 
-    const onPointerDown = (e: THREE.Event, index: number) => {
+    const onPointerDown = (e: R3FPointerEvent, index: number) => {
         e.stopPropagation();
-        const ne = (e as unknown as { nativeEvent?: PointerEvent }).nativeEvent;
+        const ne = e.nativeEvent;
         if (ne) {
             ne.preventDefault();
             ne.stopImmediatePropagation();

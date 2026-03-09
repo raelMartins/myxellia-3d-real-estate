@@ -236,3 +236,5 @@ export interface Database {
         }
     }
 }
+
+export type UnitRow = Database['public']['Tables']['units']['Row'];

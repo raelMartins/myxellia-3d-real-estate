@@ -52,7 +52,7 @@ export default function EngineSidebarSelectedUnit({
     onDeleteUnit,
     setSelectedUnit,
     setUnitFormError,
-    onInteriorUploaded,
+    onInteriorUploaded: _onInteriorUploaded,
     onViewInterior,
     onSaveHotspots,
     setDeleteSubmitting,
