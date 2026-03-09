@@ -22,7 +22,10 @@ function MeasureModel({ modelUrl, modelExtension, onBounds }: { modelUrl: string
         const g = groupRef.current;
         if (!g) return;
         const box = new THREE.Box3().setFromObject(g);
-        const { minX, maxX, minZ, maxZ } = box;
+        const minX = box.min.x;
+        const maxX = box.max.x;
+        const minZ = box.min.z;
+        const maxZ = box.max.z;
         if (minX !== maxX || minZ !== maxZ) onBounds({ minX, maxX, minZ, maxZ });
     }, [modelUrl, modelExtension, onBounds]);
     return (
