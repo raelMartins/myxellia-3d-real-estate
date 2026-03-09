@@ -8,6 +8,9 @@ import EngineSidebar from '../components/EngineSidebar';
 import EngineInteriorView from '../components/EngineInteriorView';
 import SuggestUnitsModal from '../components/SuggestUnitsModal';
 import InteriorUploadModal from '../components/InteriorUploadModal';
+import type { UnitIdentityValues } from '../components/UnitIdentityForm';
+import type { GeometryData } from '../components/UnitGeometryStep';
+import type { UnitCreateResult } from '../components/AddUnitsModal';
 import EngineViewControls from '../components/EngineViewControls';
 import EngineContextCard from '../components/EngineContextCard';
 import SetDefaultSkyboxButton from '../components/SetDefaultSkyboxButton';
@@ -61,6 +64,7 @@ export default function Engine() {
     const [saving, setSaving] = useState(false);
     const [unitFormError, setUnitFormError] = useState<string | null>(null);
     const [interiorModalOpen, setInteriorModalOpen] = useState(false);
+    const [interiorAddedPopup, setInteriorAddedPopup] = useState<{ unitId: string } | null>(null);
 
     const { profile } = useAuthStore();
     const isAdmin = profile?.role === 'admin';
@@ -346,6 +350,96 @@ export default function Engine() {
         }
     };
 
+    const handleCreateUnitFromModal = async (
+        identity: UnitIdentityValues,
+        geometry: GeometryData,
+        interiorFile: File | null
+    ): Promise<UnitCreateResult | null> => {
+        if (!buildingId || !building) return null;
+        const trimmed = (identity.unit_number ?? '').trim();
+        if (!trimmed) return null;
+        const existing = units.some((u: UnitRow) => u.unit_number === trimmed);
+        if (existing) {
+            setUnitFormError(`Unit ${trimmed} already exists.`);
+            return null;
+        }
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const token = useAuthStore.getState().session?.access_token;
+        if (!url || !key || !token) {
+            setUnitFormError('Missing Supabase config or session. Please sign in.');
+            return null;
+        }
+        const rawPrice = (building as { starting_price?: string }).starting_price;
+        const defaultPrice = rawPrice && !isNaN(Number(rawPrice)) ? Number(rawPrice) : 120000000;
+        const floor = identity.floor ?? 1;
+        const position: [number, number, number] = [0, floor * 3, 0];
+        const size: [number, number, number] = [geometry.width, geometry.height, geometry.depth];
+        const payload = {
+            building_id: buildingId,
+            unit_number: trimmed,
+            floor,
+            price: identity.price ?? defaultPrice,
+            display_name: identity.display_name || null,
+            area_sqm: identity.area_sqm ?? null,
+            bedrooms: identity.bedrooms ?? null,
+            bathrooms: identity.bathrooms ?? null,
+            view_type: identity.view_type || null,
+            amenities: identity.amenities || null,
+            status: 'available',
+            mesh_id: `u-${trimmed}`,
+            position,
+            size,
+            ...(geometry.footprint?.length >= 3 && { footprint: geometry.footprint }),
+        };
+        const createRes = await fetch(`${url}/rest/v1/units`, {
+            method: 'POST',
+            headers: {
+                'apikey': key,
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation',
+            },
+            body: JSON.stringify(payload),
+        });
+        if (!createRes.ok) {
+            const errText = await createRes.text();
+            setUnitFormError(errText || 'Failed to create unit');
+            return null;
+        }
+        const created = (await createRes.json()) as UnitRow[];
+        const newUnit = created?.[0];
+        if (!newUnit?.id) return null;
+
+        if (interiorFile) {
+            const sanitized = interiorFile.name.replace(/\s+/g, '_');
+            const objectPath = `interior/${newUnit.id}_${Date.now()}_${sanitized}`;
+            const uploadRes = await fetch(`${url}/storage/v1/object/models/${objectPath}`, {
+                method: 'POST',
+                headers: {
+                    'apikey': key,
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': interiorFile.type || 'application/octet-stream',
+                    'x-upsert': 'true',
+                },
+                body: interiorFile,
+            });
+            if (uploadRes.ok) {
+                const modelPublicUrl = `${url}/storage/v1/object/public/models/${objectPath}`;
+                await fetch(`${url}/rest/v1/units?id=eq.${newUnit.id}`, {
+                    method: 'PATCH',
+                    headers: { 'apikey': key, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+                    body: JSON.stringify({ internal_model_url: modelPublicUrl }),
+                });
+            }
+        }
+
+        setUnitFormError(null);
+        await fetchUnits(buildingId);
+        setNotification(`Unit ${trimmed} added.`);
+        return { unitId: newUnit.id, hadInterior: !!interiorFile };
+    };
+
     if (loading && !building) {
         return (
             <div className="w-screen h-screen bg-[#0A0A0B] flex items-center justify-center">
@@ -475,7 +569,51 @@ export default function Engine() {
                 onViewInterior={() => setViewMode('interior')}
                 onSaveHotspots={handleSaveHotspots}
                 onOpenInteriorModal={() => setInteriorModalOpen(true)}
+                onCreateUnitComplete={handleCreateUnitFromModal}
+                onUnitCreatedWithInterior={(unitId) => setInteriorAddedPopup({ unitId })}
             />
+
+            <AnimatePresence>
+                {interiorAddedPopup && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[101] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                        onClick={() => setInteriorAddedPopup(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0.95 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="glass-heavy rounded-2xl border border-white/10 p-6 max-w-sm w-full"
+                        >
+                            <p className="text-[#F5F7FA] text-sm mb-4">Interior added. Modify hotspots now?</p>
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedUnit(interiorAddedPopup.unitId);
+                                        setViewMode('interior');
+                                        setInteriorAddedPopup(null);
+                                    }}
+                                    className="flex-1 py-2.5 rounded-xl bg-[#C6A664] text-[#0A0A0B] text-[11px] tracking-[0.2em] font-bold uppercase"
+                                >
+                                    Yes
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setInteriorAddedPopup(null)}
+                                    className="flex-1 py-2.5 rounded-xl border border-white/10 text-[#94A3B8] text-[11px] tracking-[0.2em] uppercase"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
             </div>
         </ErrorBoundary>
     );

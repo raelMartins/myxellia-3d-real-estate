@@ -91,6 +91,7 @@ export interface Database {
                     deleted_at: string | null
                     position: [number, number, number] | null
                     size: [number, number, number] | null
+                    footprint: [number, number][] | null
                     hotspots: InteriorHotspot[] | null
                 }
                 Insert: {
@@ -115,6 +116,7 @@ export interface Database {
                     deleted_at?: string | null
                     position?: [number, number, number] | null
                     size?: [number, number, number] | null
+                    footprint?: [number, number][] | null
                 }
                 Update: {
                     id?: string
@@ -138,6 +140,7 @@ export interface Database {
                     deleted_at?: string | null
                     position?: [number, number, number] | null
                     size?: [number, number, number] | null
+                    footprint?: [number, number][] | null
                     hotspots?: InteriorHotspot[] | null
                 }
             }

@@ -6,10 +6,11 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { useEngineStore } from '../store/engine.store';
 import { ErrorBoundary } from 'react-error-boundary';
 import UnitBox, { type UnitMesh } from './UnitBox';
+import UnitPrism from './UnitPrism';
 import type { Database } from '../lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
-type DisplayUnit = { id: string; position: [number, number, number]; size: [number, number, number] };
+type DisplayUnit = { id: string; position: [number, number, number]; size: [number, number, number]; footprint?: [number, number][] | null };
 
 const FALLBACK_UNITS: UnitMesh[] = [
     { id: 'u-101', position: [-3, 1, 0], size: [2.8, 1.8, 2.8] },
@@ -130,11 +131,17 @@ export default function BuildingModel() {
         if (Array.isArray(s) && s.length >= 3) return [Number(s[0]), Number(s[1]), Number(s[2])];
         return [3, 2, 3];
     };
+    const parseFootprint = (u: UnitRow): [number, number][] | null => {
+        const f = (u as { footprint?: [number, number][] | null }).footprint;
+        if (Array.isArray(f) && f.length >= 3) return f;
+        return null;
+    };
     const displayUnits: DisplayUnit[] = units.length > 0
         ? units.map((u: UnitRow) => ({
             id: u.id,
             position: parsePosition(u),
             size: parseSize(u),
+            footprint: parseFootprint(u),
         }))
         : !building?.model_url ? FALLBACK_UNITS : [];
 
@@ -155,9 +162,13 @@ export default function BuildingModel() {
             </Suspense>
 
             {/* Overlay Status units - only if they exist or as fallback */}
-            {displayUnits.map((u: DisplayUnit) => (
-                <UnitBox key={u.id} unit={u} />
-            ))}
+            {displayUnits.map((u: DisplayUnit) =>
+                u.footprint && u.footprint.length >= 3 ? (
+                    <UnitPrism key={u.id} unit={{ id: u.id, position: u.position, size: u.size, footprint: u.footprint }} />
+                ) : (
+                    <UnitBox key={u.id} unit={u} />
+                )
+            )}
         </group>
     );
 }

@@ -1,25 +1,38 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 import UnitArchitectChoiceCards, { type UnitArchitectPath } from './UnitArchitectChoiceCards';
 import UnitArchitectStepProgress from './UnitArchitectStepProgress';
 import UnitIdentityForm, { type UnitIdentityValues } from './UnitIdentityForm';
+import UnitGeometryStep, { type GeometryData } from './UnitGeometryStep';
+import InteriorUploadStep from './InteriorUploadStep';
+
+const CUSTOM_STEPS = ['Unit Identity', 'Geometry Configuration', 'Add Interior (optional)'] as const;
+
+export type UnitCreateResult = { unitId: string; hadInterior: boolean };
 
 interface AddUnitsModalProps {
     open: boolean;
     onClose: () => void;
+    onComplete: (identity: UnitIdentityValues, geometry: GeometryData, interiorFile: File | null) => Promise<UnitCreateResult | null>;
+    onSuccess?: (result: UnitCreateResult) => void;
 }
 
-export default function AddUnitsModal({ open, onClose }: AddUnitsModalProps) {
+export default function AddUnitsModal({ open, onClose, onComplete, onSuccess }: AddUnitsModalProps) {
     const [path, setPath] = useState<UnitArchitectPath>(null);
     const [step, setStep] = useState(0);
     const [identityData, setIdentityData] = useState<UnitIdentityValues | null>(null);
+    const [geometryData, setGeometryData] = useState<GeometryData | null>(null);
+    const [interiorFile, setInteriorFile] = useState<File | null>(null);
+    const [completing, setCompleting] = useState(false);
 
     const handleClose = () => {
         setPath(null);
         setStep(0);
         setIdentityData(null);
+        setGeometryData(null);
+        setInteriorFile(null);
         onClose();
     };
 
@@ -33,7 +46,27 @@ export default function AddUnitsModal({ open, onClose }: AddUnitsModalProps) {
         setStep(1);
     };
 
+    const handleGeometryNext = (data: GeometryData) => {
+        setGeometryData(data);
+        setStep(2);
+    };
+
     const handleGeometryBack = () => setStep(0);
+    const handleInteriorBack = () => setStep(1);
+
+    const handleComplete = async () => {
+        if (!identityData || !geometryData) return;
+        setCompleting(true);
+        try {
+            const result = await onComplete(identityData, geometryData, interiorFile);
+            if (result != null) {
+                onSuccess?.(result);
+                handleClose();
+            }
+        } finally {
+            setCompleting(false);
+        }
+    };
 
     const showStepProgress = path === 'custom' && step >= 0;
     const isSectionPath = path === 'section';
@@ -115,7 +148,7 @@ export default function AddUnitsModal({ open, onClose }: AddUnitsModalProps) {
                                     transition={{ duration: 0.2 }}
                                     className="py-4"
                                 >
-                                    {showStepProgress && <UnitArchitectStepProgress currentStep={step} />}
+                                    {showStepProgress && <UnitArchitectStepProgress currentStep={step} steps={CUSTOM_STEPS} />}
                                     {step === 0 && (
                                         <UnitIdentityForm
                                             onNext={handleIdentityNext}
@@ -123,22 +156,40 @@ export default function AddUnitsModal({ open, onClose }: AddUnitsModalProps) {
                                         />
                                     )}
                                     {step === 1 && (
+                                        <UnitGeometryStep
+                                            onNext={handleGeometryNext}
+                                            onBack={handleGeometryBack}
+                                        />
+                                    )}
+                                    {step === 2 && (
                                         <div className="space-y-6">
                                             {identityData?.unit_number && (
-                                                <p className="text-[#C6A664] text-[10px] tracking-wider uppercase text-center">
+                                                <p className="text-[#C6A664] text-[10px] tracking-wider uppercase">
                                                     Unit {identityData.unit_number}
                                                 </p>
                                             )}
-                                            <p className="text-[#94A3B8] text-sm text-center py-8">
-                                                Geometry Configuration — polygon and dimensions — will be implemented in the next prompt.
-                                            </p>
+                                            <InteriorUploadStep
+                                                unitNumber={identityData?.unit_number ?? ''}
+                                                file={interiorFile}
+                                                onFileChange={setInteriorFile}
+                                            />
                                             <div className="flex justify-between pt-4 border-t border-white/10">
                                                 <button
                                                     type="button"
-                                                    onClick={handleGeometryBack}
-                                                    className="px-6 py-3 rounded-xl border border-white/10 text-[#94A3B8] text-[11px] tracking-[0.2em] uppercase hover:bg-white/5 transition-colors"
+                                                    onClick={handleInteriorBack}
+                                                    disabled={completing}
+                                                    className="px-6 py-3 rounded-xl border border-white/10 text-[#94A3B8] text-[11px] tracking-[0.2em] uppercase hover:bg-white/5 transition-colors disabled:opacity-50"
                                                 >
                                                     Back
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleComplete}
+                                                    disabled={completing}
+                                                    className="px-8 py-3 rounded-xl bg-[#C6A664] text-[#0A0A0B] text-[11px] tracking-[0.2em] font-bold uppercase hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+                                                >
+                                                    {completing ? <Loader2 size={14} className="animate-spin" /> : null}
+                                                    {completing ? 'Creating...' : 'Complete'}
                                                 </button>
                                             </div>
                                         </div>

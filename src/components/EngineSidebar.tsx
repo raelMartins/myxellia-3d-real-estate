@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Plus, PanelLeft, PanelLeftClose } from 'lucide-react';
 import EngineSidebarSelectedUnit from './EngineSidebarSelectedUnit';
 import AddUnitsModal from './AddUnitsModal';
+import type { UnitIdentityValues } from './UnitIdentityForm';
+import type { GeometryData } from './UnitGeometryStep';
 import { useEngineStore } from '../store/engine.store';
 import { formatCentsToCurrency } from '../lib/currency';
 import type { Database } from '../lib/database.types';
@@ -34,6 +36,8 @@ interface EngineSidebarProps {
     onViewInterior: () => void;
     onSaveHotspots: (unitId: string, hotspots: import('../lib/database.types').InteriorHotspot[]) => void;
     onOpenInteriorModal: () => void;
+    onCreateUnitComplete: (identity: UnitIdentityValues, geometry: GeometryData, interiorFile: File | null) => Promise<import('./AddUnitsModal').UnitCreateResult | null>;
+    onUnitCreatedWithInterior?: (unitId: string) => void;
 }
 
 export default function EngineSidebar({
@@ -51,6 +55,8 @@ export default function EngineSidebar({
     onViewInterior,
     onSaveHotspots,
     onOpenInteriorModal,
+    onCreateUnitComplete,
+    onUnitCreatedWithInterior,
 }: EngineSidebarProps) {
     const { buildingId } = useParams();
     const navigate = useNavigate();
@@ -200,7 +206,12 @@ export default function EngineSidebar({
                                         <Plus size={12} />
                                         Add Units
                                     </button>
-                                    <AddUnitsModal open={addUnitsModalOpen} onClose={() => setAddUnitsModalOpen(false)} />
+                                    <AddUnitsModal
+                                        open={addUnitsModalOpen}
+                                        onClose={() => setAddUnitsModalOpen(false)}
+                                        onComplete={onCreateUnitComplete}
+                                        onSuccess={(r) => r.hadInterior && onUnitCreatedWithInterior?.(r.unitId)}
+                                    />
                                 </div>
                             )}
                         </div>
