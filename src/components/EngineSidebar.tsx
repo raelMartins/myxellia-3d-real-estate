@@ -107,23 +107,61 @@ export default function EngineSidebar({
                 >
                     <PanelLeft size={22} strokeWidth={1.5} />
                 </button>
+            ) : selectedUnit ? (
+                <>
+                    <div className="shrink-0 p-4 pb-2 flex items-center justify-between gap-2">
+                        <button
+                            onClick={() => {
+                                setSelectedUnit(null);
+                                setUnitFormError(null);
+                            }}
+                            className="flex items-center gap-2 text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase hover:text-[#C6A664] transition-colors group"
+                        >
+                            <ArrowLeft size={12} className="group-hover:-translate-x-1 transition-transform" />
+                            Back
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setCollapsed(true)}
+                            className="p-1.5 rounded-lg text-[#94A3B8] hover:text-[#C6A664] hover:bg-white/5 transition-colors"
+                            aria-label="Collapse sidebar"
+                        >
+                            <PanelLeftClose size={18} strokeWidth={1.5} />
+                        </button>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar min-w-0">
+                        <EngineSidebarSelectedUnit
+                            selectedUnit={selectedUnit}
+                            selectedUnitData={selectedUnitData}
+                            currentStatus={currentStatus}
+                            unitFormError={unitFormError}
+                            isAdmin={isAdmin}
+                            onOpenInteriorModal={onOpenInteriorModal}
+                            deleteSubmitting={deleteSubmitting}
+                            onReserve={onReserve}
+                            onUnitSaved={onUnitSaved}
+                            onDeleteUnit={onDeleteUnit}
+                            setSelectedUnit={setSelectedUnit}
+                            setUnitFormError={setUnitFormError}
+                            onInteriorUploaded={onInteriorUploaded}
+                            onViewInterior={onViewInterior}
+                            onSaveHotspots={onSaveHotspots}
+                            setDeleteSubmitting={setDeleteSubmitting}
+                            isFullView
+                        />
+                    </div>
+                </>
             ) : (
                 <>
-                    <div className="p-8 pb-6">
-                        <div className="flex items-center justify-between gap-2 mb-6">
+                    <div className="flex-1 flex flex-col min-h-0 glass-heavy">
+                        <div className="p-8 pb-6">
+                            <div className="flex items-center justify-between gap-2 mb-6">
                             <button
-                                onClick={() => {
-                                    if (selectedUnit) {
-                                        setSelectedUnit(null);
-                                        setUnitFormError(null);
-                                    } else {
-                                        navigate(`/detail/${buildingId}`);
-                                    }
-                                }}
+                                onClick={() => navigate(`/detail/${buildingId}`)}
                                 className="flex items-center gap-2 text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase hover:text-[#C6A664] transition-colors group"
                             >
                                 <ArrowLeft size={12} className="group-hover:-translate-x-1 transition-transform" />
-                                {selectedUnit ? 'Back' : 'Back to Summary'}
+                                Back to Summary
                             </button>
                             <button
                                 type="button"
@@ -218,24 +256,7 @@ export default function EngineSidebar({
                                 </div>
                             )}
                         </div>
-                        <EngineSidebarSelectedUnit
-                            selectedUnit={selectedUnit}
-                            selectedUnitData={selectedUnitData}
-                            currentStatus={currentStatus}
-                            unitFormError={unitFormError}
-                            isAdmin={isAdmin}
-                            onOpenInteriorModal={onOpenInteriorModal}
-                            deleteSubmitting={deleteSubmitting}
-                            onReserve={onReserve}
-                            onUnitSaved={onUnitSaved}
-                            onDeleteUnit={onDeleteUnit}
-                            setSelectedUnit={setSelectedUnit}
-                            setUnitFormError={setUnitFormError}
-                            onInteriorUploaded={onInteriorUploaded}
-                            onViewInterior={onViewInterior}
-                            onSaveHotspots={onSaveHotspots}
-                            setDeleteSubmitting={setDeleteSubmitting}
-                        />
+                    </div>
                     </div>
                 </>
             )}

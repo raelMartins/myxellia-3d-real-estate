@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2 } from 'lucide-react';
@@ -21,7 +21,7 @@ interface BuildingPlanModalProps {
     open: boolean;
     onClose: () => void;
     buildingId: string;
-    building: { section_plan?: SectionPlan | null } | null;
+    building: { section_plan?: SectionPlan | null; model_url?: string | null } | null;
     oldUnits: UnitRow[];
     onApply: (payload: BuildingPlanApplyPayload) => Promise<void>;
 }
@@ -32,6 +32,10 @@ export default function BuildingPlanModal({ open, onClose, buildingId: _building
     const [newSlots, setNewSlots] = useState<NewUnitSlot[]>([]);
     const [mapping, setMapping] = useState<Record<number, string | null>>({});
     const [applying, setApplying] = useState(false);
+
+    useEffect(() => {
+        if (open) setPlan(building?.section_plan ?? null);
+    }, [open, building?.section_plan]);
 
     const hasMigration = oldUnits.length > 0;
     const steps = hasMigration ? [...STEPS_BASE, 'Data Reconciliation', 'Apply'] : [...STEPS_BASE, 'Apply'];
@@ -89,7 +93,12 @@ export default function BuildingPlanModal({ open, onClose, buildingId: _building
                         <AnimatePresence mode="wait">
                             {step === 0 && (
                                 <motion.div key="plan" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }}>
-                                    <BuildingPlanEditor initialPlan={plan} onPlanChange={handlePlanChange} />
+                                    <BuildingPlanEditor
+                                        initialPlan={plan}
+                                        onPlanChange={handlePlanChange}
+                                        modelUrl={building?.model_url ?? null}
+                                        modelExtension={building?.model_url ? building.model_url.split('.').pop() : undefined}
+                                    />
                                     <div className="flex justify-end mt-6">
                                         <button
                                             type="button"

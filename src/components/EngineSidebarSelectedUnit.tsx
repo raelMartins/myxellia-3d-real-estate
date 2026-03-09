@@ -37,6 +37,7 @@ interface EngineSidebarSelectedUnitProps {
     onViewInterior: () => void;
     onSaveHotspots: (unitId: string, hotspots: InteriorHotspot[]) => void;
     setDeleteSubmitting: (v: boolean) => void;
+    isFullView?: boolean;
 }
 
 export default function EngineSidebarSelectedUnit({
@@ -56,6 +57,7 @@ export default function EngineSidebarSelectedUnit({
     onViewInterior,
     onSaveHotspots,
     setDeleteSubmitting,
+    isFullView = false,
 }: EngineSidebarSelectedUnitProps) {
     const { hotspotPlacementMode, setHotspotPlacementMode, capturedHotspotPosition, setCapturedHotspotPosition } = useEngineStore();
 
@@ -67,7 +69,7 @@ export default function EngineSidebarSelectedUnit({
                         initial={{ y: 20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 20, opacity: 0 }}
-                        className="p-8 pt-6 border-t border-white/5 glass-heavy"
+                        className={isFullView ? 'p-8 glass-heavy' : 'p-8 pt-6 border-t border-white/5 glass-heavy'}
                     >
                         <div className="flex justify-between items-end mb-6">
                             <div>
