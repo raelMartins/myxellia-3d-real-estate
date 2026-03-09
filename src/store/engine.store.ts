@@ -36,6 +36,8 @@ interface EngineState {
     skyboxEnvironments: SkyboxRow[]
     /** Currently selected skybox URL for exterior; null = use building default */
     selectedSkyboxUrl: string | null
+    /** XZ bounding box of loaded building model (for section-plan unit placement) */
+    modelBoundsXZ: { minX: number; maxX: number; minZ: number; maxZ: number } | null
 
     setBuilding: (id: string | null) => void
     fetchBuilding: (id: string) => Promise<void>
@@ -55,6 +57,7 @@ interface EngineState {
     setCapturedHotspotPosition: (pos: [number, number, number] | null) => void
     setSkyboxEnvironments: (list: SkyboxRow[]) => void
     setSelectedSkyboxUrl: (url: string | null) => void
+    setModelBoundsXZ: (bounds: { minX: number; maxX: number; minZ: number; maxZ: number } | null) => void
     requestScreenshot: () => Promise<string>
     resetEngine: () => void
 }
@@ -79,6 +82,7 @@ export const useEngineStore = create<EngineState>((set) => ({
     capturedHotspotPosition: null,
     skyboxEnvironments: [],
     selectedSkyboxUrl: null,
+    modelBoundsXZ: null,
 
     setBuilding: (id) => set({ buildingId: id, activeFloor: null, selectedUnit: null, viewMode: 'exterior' }),
 
@@ -148,6 +152,7 @@ export const useEngineStore = create<EngineState>((set) => ({
     setCapturedHotspotPosition: (pos) => set({ capturedHotspotPosition: pos }),
     setSkyboxEnvironments: (list) => set({ skyboxEnvironments: list }),
     setSelectedSkyboxUrl: (url) => set({ selectedSkyboxUrl: url }),
+    setModelBoundsXZ: (bounds) => set({ modelBoundsXZ: bounds }),
     requestScreenshot: (): Promise<string> => {
         const handler = useEngineStore.getState().screenshotHandler;
         if (!handler) return Promise.reject(new Error('Canvas not ready for screenshot'));
@@ -173,5 +178,6 @@ export const useEngineStore = create<EngineState>((set) => ({
         capturedHotspotPosition: null,
         skyboxEnvironments: [],
         selectedSkyboxUrl: null,
+        modelBoundsXZ: null,
     }),
 }))

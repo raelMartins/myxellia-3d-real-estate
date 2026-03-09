@@ -52,7 +52,7 @@ export default function Engine() {
     const {
         building, units, loading,
         selectedUnit, viewMode, lightingMode, unitStatuses, notification,
-        skyboxEnvironments, selectedSkyboxUrl,
+        skyboxEnvironments, selectedSkyboxUrl, modelBoundsXZ,
         fetchBuilding, fetchUnits, setSelectedUnit, setViewMode, setLightingMode,
         setUnitStatus, setNotification, requestScreenshot, setUnitPositionHandler, setUnitSizeHandler, setUnitRotationHandler,
         setSkyboxEnvironments, setSelectedSkyboxUrl,
@@ -506,7 +506,7 @@ export default function Engine() {
 
         for (let i = 0; i < newSlots.length; i++) {
             const slot = newSlots[i];
-            const { position, size, footprint } = slotToUnitGeometry(slot, plan);
+            const { position, size, footprint } = slotToUnitGeometry(slot, plan, modelBoundsXZ);
             const oldUnitId = mapping[i] ?? null;
             const oldUnit = oldUnitId ? units.find((u: UnitRow) => u.id === oldUnitId) : null;
             const unitNumber = unitNumberFor(slot, i);

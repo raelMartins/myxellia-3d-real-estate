@@ -10,8 +10,6 @@ export type NewUnitSlot = {
     yPosition: number;
 };
 
-const Z_OFFSET = 0.001;
-
 interface SectionFloorsConfigProps {
     plan: SectionPlan;
     defaultFloors?: number;
@@ -48,7 +46,7 @@ export default function SectionFloorsConfig({
                     floorIndex: f,
                     footprint: section.footprint,
                     floorHeight,
-                    yPosition: f * (floorHeight + Z_OFFSET),
+                    yPosition: f * floorHeight,
                 });
             }
         });

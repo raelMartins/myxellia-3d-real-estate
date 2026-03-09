@@ -1,4 +1,4 @@
-import { Suspense, useRef, useLayoutEffect, useState } from 'react';
+import { Suspense, useRef, useLayoutEffect, useState, useCallback, useEffect } from 'react';
 import { useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGLTF, Html, Center, useFBX } from '@react-three/drei';
@@ -59,7 +59,7 @@ export function ModelLoader({ url, extension }: { url: string; extension?: strin
 
 const BASE_HEIGHT = 0.04;
 
-function ModelWithRedBase({ url, extension }: { url: string; extension?: string }) {
+function ModelWithRedBase({ url, extension, onBounds }: { url: string; extension?: string; onBounds: (b: { minX: number; maxX: number; minZ: number; maxZ: number }) => void }) {
     const modelRef = useRef<THREE.Group>(null);
     const [groundOffset, setGroundOffset] = useState(0);
 
@@ -68,7 +68,8 @@ function ModelWithRedBase({ url, extension }: { url: string; extension?: string 
         if (!group) return;
         const box = new THREE.Box3().setFromObject(group);
         setGroundOffset(BASE_HEIGHT - box.min.y);
-    }, [url]);
+        onBounds({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z });
+    }, [url, onBounds]);
 
     return (
         <group position={[0, groundOffset, 0]}>
@@ -99,7 +100,11 @@ function PlaceholderBuilding() {
 }
 
 export default function BuildingModel() {
-    const { building, units } = useEngineStore();
+    const { building, units, setModelBoundsXZ } = useEngineStore();
+    const onBounds = useCallback((b: { minX: number; maxX: number; minZ: number; maxZ: number }) => setModelBoundsXZ(b), [setModelBoundsXZ]);
+    useEffect(() => {
+        if (!building?.model_url) setModelBoundsXZ(null);
+    }, [building?.model_url, setModelBoundsXZ]);
 
     const parsePosition = (u: UnitRow): [number, number, number] => {
         const p = u.position;
@@ -140,7 +145,7 @@ export default function BuildingModel() {
                 </Html>
             }>
                 {building?.model_url ? (
-                    <ModelWithRedBase url={building.model_url} />
+                    <ModelWithRedBase url={building.model_url} onBounds={onBounds} />
                 ) : (
                     <PlaceholderBuilding />
                 )}
