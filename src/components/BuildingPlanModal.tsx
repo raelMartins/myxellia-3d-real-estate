@@ -8,6 +8,7 @@ import SectionFloorsConfig, { type NewUnitSlot } from './SectionFloorsConfig';
 import MigrationReconcileView from './MigrationReconcileView';
 import type { SectionPlan } from '../lib/database.types';
 import type { UnitRow } from '../lib/database.types';
+import { polygonPairsIntersect } from '../lib/polygonUtils';
 
 const STEPS_BASE = ['Bird\'s Eye Plan', 'Floors & Height'] as const;
 
@@ -32,10 +33,50 @@ export default function BuildingPlanModal({ open, onClose, buildingId: _building
     const [newSlots, setNewSlots] = useState<NewUnitSlot[]>([]);
     const [mapping, setMapping] = useState<Record<number, string | null>>({});
     const [applying, setApplying] = useState(false);
+    const [blobModelUrl, setBlobModelUrl] = useState<string | null>(null);
 
     useEffect(() => {
         if (open) setPlan(building?.section_plan ?? null);
     }, [open, building?.section_plan]);
+
+    const sourceModelUrl = building?.model_url ?? null;
+
+    useEffect(() => {
+        if (!open || !sourceModelUrl) {
+            setBlobModelUrl((prev) => {
+                if (prev) URL.revokeObjectURL(prev);
+                return null;
+            });
+            return;
+        }
+        let revoked = false;
+        let blobUrl: string | null = null;
+        fetch(sourceModelUrl)
+            .then((r) => r.blob())
+            .then((blob) => {
+                if (revoked) return;
+                blobUrl = URL.createObjectURL(blob);
+                setBlobModelUrl(blobUrl);
+            })
+            .catch(() => {
+                if (!revoked) setBlobModelUrl(null);
+            });
+        return () => {
+            revoked = true;
+            if (blobUrl) URL.revokeObjectURL(blobUrl);
+            setBlobModelUrl(null);
+        };
+    }, [open, sourceModelUrl]);
+
+    const planModelUrl = sourceModelUrl ? (blobModelUrl ?? null) : null;
+    const planModelLoading = !!sourceModelUrl && !blobModelUrl;
+
+    const hasSectionOverlap =
+        !!plan &&
+        plan.sections.length >= 2 &&
+        plan.sections.some((s, i) =>
+            plan.sections.some((t, j) => i < j && polygonPairsIntersect(s.footprint, t.footprint))
+        );
 
     const hasMigration = oldUnits.length > 0;
     const steps = hasMigration ? [...STEPS_BASE, 'Data Reconciliation', 'Apply'] : [...STEPS_BASE, 'Apply'];
@@ -93,17 +134,24 @@ export default function BuildingPlanModal({ open, onClose, buildingId: _building
                         <AnimatePresence mode="wait">
                             {step === 0 && (
                                 <motion.div key="plan" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }}>
-                                    <BuildingPlanEditor
-                                        initialPlan={plan}
-                                        onPlanChange={handlePlanChange}
-                                        modelUrl={building?.model_url ?? null}
-                                        modelExtension={building?.model_url ? building.model_url.split('.').pop() : undefined}
-                                    />
+                                    {planModelLoading && (
+                                        <div className="flex items-center justify-center py-24 text-[11px] tracking-widest text-[#94A3B8] uppercase">
+                                            Loading plan…
+                                        </div>
+                                    )}
+                                    {!planModelLoading && (
+                                        <BuildingPlanEditor
+                                            initialPlan={plan}
+                                            onPlanChange={handlePlanChange}
+                                            modelUrl={planModelUrl}
+                                            modelExtension={sourceModelUrl ? sourceModelUrl.split('.').pop() : undefined}
+                                        />
+                                    )}
                                     <div className="flex justify-end mt-6">
                                         <button
                                             type="button"
-                                            onClick={() => plan && plan.sections.length > 0 && setStep(1)}
-                                            disabled={!plan || plan.sections.length === 0}
+                                            onClick={() => plan && plan.sections.length > 0 && !hasSectionOverlap && setStep(1)}
+                                            disabled={!plan || plan.sections.length === 0 || hasSectionOverlap}
                                             className="px-8 py-3 rounded-xl bg-[#C6A664] text-[#0A0A0B] text-[11px] tracking-[0.2em] font-bold uppercase disabled:opacity-50"
                                         >
                                             Next

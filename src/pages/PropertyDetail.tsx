@@ -155,7 +155,7 @@ export default function PropertyDetail() {
                                 }} />
                                 {bldg.section_plan?.sections?.length ? (
                                     <svg width="340" height="220" viewBox="-0.05 -0.05 1.1 1.1" preserveAspectRatio="xMidYMid meet" className="w-full h-full" fill="none">
-                                        <rect x={0} y={0} width={1} height={1} stroke="#C6A664" strokeWidth="0.02" fill="none" />
+                                        <rect x={0} y={0} width={1} height={1} stroke="#C6A664" strokeWidth="0.007" fill="none" />
                                         {bldg.section_plan.sections.map((sec, idx) => {
                                             const pts = sec.footprint;
                                             const pathD = pts.length >= 2 ? pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${1 - p[1]}`).join(' ') + ' Z' : '';
@@ -163,8 +163,8 @@ export default function PropertyDetail() {
                                             const cy = 1 - (pts.reduce((a, p) => a + p[1], 0) / pts.length);
                                             return (
                                                 <g key={idx}>
-                                                    <path d={pathD} stroke="#C6A664" strokeWidth="0.015" fill="rgba(198,166,100,0.08)" />
-                                                    <text x={cx} y={cy} fill="#C6A664" fontSize="0.06" textAnchor="middle" dominantBaseline="middle" opacity={0.9}>{sec.label}</text>
+                                                    <path d={pathD} stroke="#C6A664" strokeWidth="0.005" fill="rgba(198,166,100,0.08)" />
+                                                    <text x={cx} y={cy} fill="#C6A664" fontSize="0.028" textAnchor="middle" dominantBaseline="middle" opacity={0.9}>{sec.label}</text>
                                                 </g>
                                             );
                                         })}

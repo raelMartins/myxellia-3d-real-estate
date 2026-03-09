@@ -3,7 +3,7 @@ import { isSimplePolygon, type Point2 } from '../lib/polygonUtils';
 
 const CANVAS_SIZE = 280;
 const GRID_STEP = 0.25;
-const VERTEX_R = 0.06;
+const VERTEX_R = 0.02;
 
 interface PolygonCanvasProps {
     vertices: Point2[];
@@ -77,7 +77,7 @@ export default function PolygonCanvas({ vertices, onVerticesChange }: PolygonCan
                     ))}
                 </g>
                 <rect x="-0.5" y="-0.5" width="1" height="1" fill="none" stroke="rgba(198,166,100,0.3)" strokeWidth="0.02" />
-                <path d={pathD} fill="rgba(198,166,100,0.12)" stroke="#C6A664" strokeWidth="0.02" strokeLinejoin="round" />
+                <path d={pathD} fill="rgba(198,166,100,0.12)" stroke="#C6A664" strokeWidth="0.007" strokeLinejoin="round" />
                 {vertices.map((v, i) => {
                     const { x, y } = toSvg(v);
                     return (
@@ -88,7 +88,7 @@ export default function PolygonCanvas({ vertices, onVerticesChange }: PolygonCan
                             r={VERTEX_R}
                             fill="#C6A664"
                             stroke="#0A0A0B"
-                            strokeWidth="0.015"
+                            strokeWidth="0.005"
                             className="cursor-grab active:cursor-grabbing"
                             onPointerDown={(e) => handlePointerDown(e, i)}
                         />

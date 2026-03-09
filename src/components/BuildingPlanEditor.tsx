@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { regularPolygonVertices, type Point2 } from '../lib/polygonUtils';
+import { regularPolygonVertices, polygonPairsIntersect, type Point2 } from '../lib/polygonUtils';
 import type { SectionPlan, SectionPlanSection } from '../lib/database.types';
 import BirdEyeCanvas from './BirdEyeCanvas';
 import BuildingPlanTopDownView, { type PlanViewSize } from './BuildingPlanTopDownView';
@@ -69,10 +69,16 @@ export default function BuildingPlanEditor({ initialPlan, onPlanChange, modelUrl
         [sections, baseWidth, baseDepth, onPlanChange]
     );
 
+    const hasSectionOverlap =
+        sections.length >= 2 &&
+        sections.some((s, i) =>
+            sections.some((t, j) => i < j && polygonPairsIntersect(s.footprint, t.footprint))
+        );
+
     return (
         <div className="flex gap-6 min-h-0 flex-1">
             <div className="flex-[2] min-w-0 flex flex-col items-center shrink-0">
-                <div className="relative" style={{ width: planViewSize.width, height: planViewSize.height }}>
+                <div className="relative border-[0.5px] border-white/10 overflow-hidden bg-[#0A0A0B]" style={{ width: planViewSize.width, height: planViewSize.height }}>
                     <BuildingPlanTopDownView
                         modelUrl={modelUrl ?? null}
                         modelExtension={modelExtension}
@@ -89,16 +95,23 @@ export default function BuildingPlanEditor({ initialPlan, onPlanChange, modelUrl
                         height={planViewSize.height}
                     />
                 </div>
-                <div className="flex items-center justify-between gap-2 w-full mt-2" style={{ maxWidth: planViewSize.width }}>
-                    <p className="text-[9px] tracking-wider text-[#94A3B8] uppercase">Top-down view · Draw sections on the plan</p>
-                    {modelUrl && (
+                <div className="flex flex-col gap-1 w-full mt-2" style={{ maxWidth: planViewSize.width }}>
+                    <div className="flex items-center justify-between gap-2">
+                        <p className="text-[9px] tracking-wider text-[#94A3B8] uppercase">Top-down view · Draw sections on the plan</p>
+                        {modelUrl && (
                         <button
                             type="button"
                             onClick={() => setFitTrigger((t) => t + 1)}
                             className="shrink-0 px-3 py-1.5 rounded-lg border border-white/10 text-[9px] tracking-widest uppercase text-[#C6A664] hover:bg-white/5 transition-colors"
                         >
-                            Fit Model
+                            Show Model
                         </button>
+                        )}
+                    </div>
+                    {hasSectionOverlap && (
+                        <p className="text-[10px] text-amber-400/90" role="alert">
+                            Some section lines are crossing
+                        </p>
                     )}
                 </div>
             </div>

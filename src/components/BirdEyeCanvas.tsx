@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react';
-import { isSimplePolygon, polygonPairsIntersect, type Point2 } from '../lib/polygonUtils';
+import { isSimplePolygon, type Point2 } from '../lib/polygonUtils';
 import type { SectionPlanSection } from '../lib/database.types';
 
 const DEFAULT_SIZE = 320;
@@ -56,8 +56,6 @@ export default function BirdEyeCanvas({
             if (!section) return;
             const next = section.footprint.map((v, i) => (i === d.vertexIndex ? newPt : v));
             if (!isSimplePolygon(next)) return;
-            const others = sections.filter((s) => s.id !== d.sectionId);
-            if (others.some((o) => polygonPairsIntersect(next, o.footprint))) return;
             onVerticesChange(d.sectionId, next);
         },
         [sections, onVerticesChange, fromSvg]
@@ -123,7 +121,7 @@ export default function BirdEyeCanvas({
                                 d={pathD}
                                 fill={selected ? 'rgba(198,166,100,0.2)' : 'rgba(198,166,100,0.1)'}
                                 stroke={strokeColor}
-                                strokeWidth="0.018"
+                                strokeWidth="0.006"
                                 strokeLinejoin="round"
                                 onClick={(e) => { e.stopPropagation(); onSelectSection(section.id); }}
                                 style={{ cursor: 'pointer' }}
@@ -136,10 +134,10 @@ export default function BirdEyeCanvas({
                                             key={i}
                                             cx={x}
                                             cy={y}
-                                            r={0.03}
+                                            r={0.01}
                                             fill="#C6A664"
                                             stroke="#0A0A0B"
-                                            strokeWidth="0.012"
+                                            strokeWidth="0.004"
                                             className="cursor-grab active:cursor-grabbing"
                                             onPointerDown={(ev) => handlePointerDown(ev, section.id, i)}
                                         />
