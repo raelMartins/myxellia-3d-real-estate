@@ -17,9 +17,10 @@ interface AddUnitsModalProps {
     onClose: () => void;
     onComplete: (identity: UnitIdentityValues, geometry: GeometryData, interiorFile: File | null) => Promise<UnitCreateResult | null>;
     onSuccess?: (result: UnitCreateResult) => void;
+    onOpenSectionPlan?: () => void;
 }
 
-export default function AddUnitsModal({ open, onClose, onComplete, onSuccess }: AddUnitsModalProps) {
+export default function AddUnitsModal({ open, onClose, onComplete, onSuccess, onOpenSectionPlan }: AddUnitsModalProps) {
     const [path, setPath] = useState<UnitArchitectPath>(null);
     const [step, setStep] = useState(0);
     const [identityData, setIdentityData] = useState<UnitIdentityValues | null>(null);
@@ -125,16 +126,25 @@ export default function AddUnitsModal({ open, onClose, onComplete, onSuccess }: 
                                 animate={{ opacity: 1, y: 0 }}
                                 className="py-12 text-center"
                             >
-                                <p className="text-[#94A3B8] text-sm">
-                                    Add Units By Section will be available in a later update. Use Add Custom Unit for now.
+                                <p className="text-[#94A3B8] text-sm mb-6">
+                                    Draw section polygons on the building plan, then generate units by floor. You can map old unit data to new prisms.
                                 </p>
-                                <button
-                                    type="button"
-                                    onClick={() => setPath(null)}
-                                    className="mt-6 px-6 py-3 rounded-xl border border-[#C6A664]/40 text-[#C6A664] text-[11px] tracking-[0.2em] uppercase hover:bg-[#C6A664]/10 transition-colors"
-                                >
-                                    Back to choices
-                                </button>
+                                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => { onOpenSectionPlan?.(); onClose(); }}
+                                        className="px-8 py-3 rounded-xl bg-[#C6A664] text-[#0A0A0B] text-[11px] tracking-[0.2em] font-bold uppercase hover:opacity-90"
+                                    >
+                                        Open Building Plan
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPath(null)}
+                                        className="px-6 py-3 rounded-xl border border-white/10 text-[#94A3B8] text-[11px] tracking-[0.2em] uppercase hover:bg-white/5"
+                                    >
+                                        Back to choices
+                                    </button>
+                                </div>
                             </motion.div>
                         )}
 

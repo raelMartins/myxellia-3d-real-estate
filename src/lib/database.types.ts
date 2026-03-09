@@ -15,6 +15,20 @@ export interface InteriorHotspot {
     description?: string
 }
 
+/** Section polygon for building plan: id, label, footprint in normalized 0-1 */
+export interface SectionPlanSection {
+    id: string
+    label: string
+    footprint: [number, number][]
+}
+
+/** Building section plan: base dimensions and sections (gold polygons) */
+export interface SectionPlan {
+    baseWidth: number
+    baseDepth: number
+    sections: SectionPlanSection[]
+}
+
 export interface Database {
     public: {
         Tables: {
@@ -34,6 +48,7 @@ export interface Database {
                     env_context?: string | null
                     store_url?: string | null
                     generated_env_url?: string | null
+                    section_plan?: SectionPlan | null
                 }
                 Insert: {
                     id?: string
@@ -50,6 +65,7 @@ export interface Database {
                     env_context?: string | null
                     store_url?: string | null
                     generated_env_url?: string | null
+                    section_plan?: SectionPlan | null
                 }
                 Update: {
                     id?: string
@@ -66,6 +82,7 @@ export interface Database {
                     env_context?: string | null
                     store_url?: string | null
                     generated_env_url?: string | null
+                    section_plan?: SectionPlan | null
                 }
             }
             units: {
@@ -92,6 +109,7 @@ export interface Database {
                     position: [number, number, number] | null
                     size: [number, number, number] | null
                     footprint: [number, number][] | null
+                    rotation: number | null
                     hotspots: InteriorHotspot[] | null
                 }
                 Insert: {
@@ -117,6 +135,7 @@ export interface Database {
                     position?: [number, number, number] | null
                     size?: [number, number, number] | null
                     footprint?: [number, number][] | null
+                    rotation?: number | null
                 }
                 Update: {
                     id?: string
@@ -141,6 +160,7 @@ export interface Database {
                     position?: [number, number, number] | null
                     size?: [number, number, number] | null
                     footprint?: [number, number][] | null
+                    rotation?: number | null
                     hotspots?: InteriorHotspot[] | null
                 }
             }

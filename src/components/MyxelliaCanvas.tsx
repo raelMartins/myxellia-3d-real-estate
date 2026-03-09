@@ -145,6 +145,7 @@ export default function MyxelliaCanvas() {
                 makeDefault
                 enableDamping
                 dampingFactor={0.06}
+                target={viewMode === 'interior' ? [0, -1, 0] : undefined}
                 minPolarAngle={0.1}
                 maxPolarAngle={Math.PI / 2}
                 minDistance={viewMode === 'interior' ? 1.5 : 4}

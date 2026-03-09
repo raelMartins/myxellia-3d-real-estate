@@ -1,5 +1,5 @@
 import { Suspense, useRef, useLayoutEffect, useState } from 'react';
-import { useFrame, useLoader } from '@react-three/fiber';
+import { useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGLTF, Html, Center, useFBX } from '@react-three/drei';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
@@ -10,7 +10,7 @@ import UnitPrism from './UnitPrism';
 import type { Database } from '../lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
-type DisplayUnit = { id: string; position: [number, number, number]; size: [number, number, number]; footprint?: [number, number][] | null };
+type DisplayUnit = { id: string; position: [number, number, number]; size: [number, number, number]; footprint?: [number, number][] | null; rotation?: number };
 
 const FALLBACK_UNITS: UnitMesh[] = [
     { id: 'u-101', position: [-3, 1, 0], size: [2.8, 1.8, 2.8] },
@@ -61,27 +61,13 @@ const BASE_HEIGHT = 0.04;
 
 function ModelWithRedBase({ url, extension }: { url: string; extension?: string }) {
     const modelRef = useRef<THREE.Group>(null);
-    const [base, setBase] = useState<{ width: number; depth: number; x: number; y: number; z: number } | null>(null);
     const [groundOffset, setGroundOffset] = useState(0);
 
     useLayoutEffect(() => {
         const group = modelRef.current;
         if (!group) return;
         const box = new THREE.Box3().setFromObject(group);
-        const size = new THREE.Vector3();
-        const center = new THREE.Vector3();
-        box.getSize(size);
-        box.getCenter(center);
-        if (size.x > 0 && size.z > 0) {
-            setBase({
-                width: size.x,
-                depth: size.z,
-                x: center.x,
-                y: box.min.y - BASE_HEIGHT / 2,
-                z: center.z,
-            });
-            setGroundOffset(BASE_HEIGHT - box.min.y);
-        }
+        setGroundOffset(BASE_HEIGHT - box.min.y);
     }, [url]);
 
     return (
@@ -91,12 +77,6 @@ function ModelWithRedBase({ url, extension }: { url: string; extension?: string 
                     <ModelLoader url={url} extension={extension} />
                 </Center>
             </group>
-            {base && (
-                <mesh position={[base.x, base.y, base.z]}>
-                    <boxGeometry args={[base.width, BASE_HEIGHT, base.depth]} />
-                    <meshStandardMaterial color="#E53935" roughness={0.8} metalness={0} />
-                </mesh>
-            )}
         </group>
     );
 }
@@ -136,12 +116,17 @@ export default function BuildingModel() {
         if (Array.isArray(f) && f.length >= 3) return f;
         return null;
     };
+    const parseRotation = (u: UnitRow): number => {
+        const r = (u as { rotation?: number | null }).rotation;
+        return typeof r === 'number' && Number.isFinite(r) ? r : 0;
+    };
     const displayUnits: DisplayUnit[] = units.length > 0
         ? units.map((u: UnitRow) => ({
             id: u.id,
             position: parsePosition(u),
             size: parseSize(u),
             footprint: parseFootprint(u),
+            rotation: parseRotation(u),
         }))
         : !building?.model_url ? FALLBACK_UNITS : [];
 
@@ -162,9 +147,14 @@ export default function BuildingModel() {
             </Suspense>
 
             {/* Overlay Status units - only if they exist or as fallback */}
+            {/* Prism drag/resize: set allowDrag=false for section-created units unless a global "allow drag section units" toggle is on */}
             {displayUnits.map((u: DisplayUnit) =>
                 u.footprint && u.footprint.length >= 3 ? (
-                    <UnitPrism key={u.id} unit={{ id: u.id, position: u.position, size: u.size, footprint: u.footprint }} />
+                    <UnitPrism
+                        key={u.id}
+                        unit={{ id: u.id, position: u.position, size: u.size, footprint: u.footprint, rotation: u.rotation ?? 0 }}
+                        allowDrag={true}
+                    />
                 ) : (
                     <UnitBox key={u.id} unit={u} />
                 )

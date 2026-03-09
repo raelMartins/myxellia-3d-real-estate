@@ -43,6 +43,22 @@ export function segmentsIntersect(
     return false;
 }
 
+/** True if two polygons have any crossing segments (excluding touching at vertices). */
+export function polygonPairsIntersect(a: Point2[], b: Point2[]): boolean {
+    const na = a.length;
+    const nb = b.length;
+    for (let i = 0; i < na; i++) {
+        const pa = a[i];
+        const pb = a[(i + 1) % na];
+        for (let j = 0; j < nb; j++) {
+            const pc = b[j];
+            const pd = b[(j + 1) % nb];
+            if (segmentsIntersect(pa, pb, pc, pd)) return true;
+        }
+    }
+    return false;
+}
+
 /** True if polygon has no self-intersection (simple polygon). */
 export function isSimplePolygon(vertices: Point2[]): boolean {
     const n = vertices.length;

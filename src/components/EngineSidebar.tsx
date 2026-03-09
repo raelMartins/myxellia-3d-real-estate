@@ -38,6 +38,7 @@ interface EngineSidebarProps {
     onOpenInteriorModal: () => void;
     onCreateUnitComplete: (identity: UnitIdentityValues, geometry: GeometryData, interiorFile: File | null) => Promise<import('./AddUnitsModal').UnitCreateResult | null>;
     onUnitCreatedWithInterior?: (unitId: string) => void;
+    onOpenBuildingPlan?: () => void;
 }
 
 export default function EngineSidebar({
@@ -57,6 +58,7 @@ export default function EngineSidebar({
     onOpenInteriorModal,
     onCreateUnitComplete,
     onUnitCreatedWithInterior,
+    onOpenBuildingPlan,
 }: EngineSidebarProps) {
     const { buildingId } = useParams();
     const navigate = useNavigate();
@@ -211,30 +213,30 @@ export default function EngineSidebar({
                                         onClose={() => setAddUnitsModalOpen(false)}
                                         onComplete={onCreateUnitComplete}
                                         onSuccess={(r) => r.hadInterior && onUnitCreatedWithInterior?.(r.unitId)}
+                                        onOpenSectionPlan={() => { onOpenBuildingPlan?.(); setAddUnitsModalOpen(false); }}
                                     />
                                 </div>
                             )}
                         </div>
+                        <EngineSidebarSelectedUnit
+                            selectedUnit={selectedUnit}
+                            selectedUnitData={selectedUnitData}
+                            currentStatus={currentStatus}
+                            unitFormError={unitFormError}
+                            isAdmin={isAdmin}
+                            onOpenInteriorModal={onOpenInteriorModal}
+                            deleteSubmitting={deleteSubmitting}
+                            onReserve={onReserve}
+                            onUnitSaved={onUnitSaved}
+                            onDeleteUnit={onDeleteUnit}
+                            setSelectedUnit={setSelectedUnit}
+                            setUnitFormError={setUnitFormError}
+                            onInteriorUploaded={onInteriorUploaded}
+                            onViewInterior={onViewInterior}
+                            onSaveHotspots={onSaveHotspots}
+                            setDeleteSubmitting={setDeleteSubmitting}
+                        />
                     </div>
-
-                    <EngineSidebarSelectedUnit
-                        selectedUnit={selectedUnit}
-                        selectedUnitData={selectedUnitData}
-                        currentStatus={currentStatus}
-                        unitFormError={unitFormError}
-                        isAdmin={isAdmin}
-                        onOpenInteriorModal={onOpenInteriorModal}
-                        deleteSubmitting={deleteSubmitting}
-                        onReserve={onReserve}
-                        onUnitSaved={onUnitSaved}
-                        onDeleteUnit={onDeleteUnit}
-                        setSelectedUnit={setSelectedUnit}
-                        setUnitFormError={setUnitFormError}
-                        onInteriorUploaded={onInteriorUploaded}
-                        onViewInterior={onViewInterior}
-                        onSaveHotspots={onSaveHotspots}
-                        setDeleteSubmitting={setDeleteSubmitting}
-                    />
                 </>
             )}
         </motion.div>

@@ -11,6 +11,9 @@ import InteriorUploadModal from '../components/InteriorUploadModal';
 import type { UnitIdentityValues } from '../components/UnitIdentityForm';
 import type { GeometryData } from '../components/UnitGeometryStep';
 import type { UnitCreateResult } from '../components/AddUnitsModal';
+import BuildingPlanModal from '../components/BuildingPlanModal';
+import type { BuildingPlanApplyPayload } from '../components/BuildingPlanModal';
+import { slotToUnitGeometry } from '../lib/sectionPlanUnits';
 import EngineViewControls from '../components/EngineViewControls';
 import EngineContextCard from '../components/EngineContextCard';
 import SetDefaultSkyboxButton from '../components/SetDefaultSkyboxButton';
@@ -51,7 +54,7 @@ export default function Engine() {
         selectedUnit, viewMode, lightingMode, unitStatuses, notification,
         skyboxEnvironments, selectedSkyboxUrl,
         fetchBuilding, fetchUnits, setSelectedUnit, setViewMode, setLightingMode,
-        setUnitStatus, setNotification, requestScreenshot, setUnitPositionHandler, setUnitSizeHandler,
+        setUnitStatus, setNotification, requestScreenshot, setUnitPositionHandler, setUnitSizeHandler, setUnitRotationHandler,
         setSkyboxEnvironments, setSelectedSkyboxUrl,
         resetEngine,
     } = useEngineStore();
@@ -65,6 +68,7 @@ export default function Engine() {
     const [unitFormError, setUnitFormError] = useState<string | null>(null);
     const [interiorModalOpen, setInteriorModalOpen] = useState(false);
     const [interiorAddedPopup, setInteriorAddedPopup] = useState<{ unitId: string } | null>(null);
+    const [buildingPlanModalOpen, setBuildingPlanModalOpen] = useState(false);
 
     const { profile } = useAuthStore();
     const isAdmin = profile?.role === 'admin';
@@ -255,14 +259,38 @@ export default function Engine() {
         setNotification('Unit size updated.');
     };
 
+    const handleUpdateUnitRotation = async (unitId: string, rotation: number) => {
+        const { buildingId: bid } = useEngineStore.getState();
+        if (!bid) return;
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const token = useAuthStore.getState().session?.access_token;
+        if (!url || !key || !token) return;
+        const res = await fetch(`${url}/rest/v1/units?id=eq.${unitId}`, {
+            method: 'PATCH',
+            headers: {
+                'apikey': key,
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({ rotation }),
+        });
+        if (!res.ok) return;
+        await useEngineStore.getState().fetchUnits(bid);
+        setNotification('Unit rotation updated.');
+    };
+
     useEffect(() => {
         setUnitPositionHandler(handleUpdateUnitPosition);
         setUnitSizeHandler(handleUpdateUnitSize);
+        setUnitRotationHandler(handleUpdateUnitRotation);
         return () => {
             setUnitPositionHandler(null);
             setUnitSizeHandler(null);
+            setUnitRotationHandler(null);
         };
-    }, [setUnitPositionHandler, setUnitSizeHandler]);
+    }, [setUnitPositionHandler, setUnitSizeHandler, setUnitRotationHandler]);
 
     const handleSuggestUnits = async () => {
         if (!buildingId || !building) return;
@@ -440,6 +468,87 @@ export default function Engine() {
         return { unitId: newUnit.id, hadInterior: !!interiorFile };
     };
 
+    const handleBuildingPlanApply = async (payload: BuildingPlanApplyPayload) => {
+        if (!buildingId || !building) return;
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const token = useAuthStore.getState().session?.access_token;
+        if (!url || !key || !token) {
+            setUnitFormError('Missing Supabase config or session.');
+            return;
+        }
+        const { plan, newSlots, mapping } = payload;
+        const rawPrice = (building as { starting_price?: string }).starting_price;
+        const defaultPrice = rawPrice && !isNaN(Number(rawPrice)) ? Number(rawPrice) : 120000000;
+
+        const patchRes = await fetch(`${url}/rest/v1/buildings?id=eq.${buildingId}`, {
+            method: 'PATCH',
+            headers: { 'apikey': key, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ section_plan: plan }),
+        });
+        if (!patchRes.ok) {
+            setUnitFormError(await patchRes.text() || 'Failed to save plan');
+            return;
+        }
+
+        const existingNumbers = new Set(units.map((u: UnitRow) => u.unit_number));
+        const unitNumberFor = (slot: (typeof newSlots)[0], index: number) => {
+            const base = `${slot.sectionLabel.replace(/\s+/g, '-')}-${slot.floorIndex + 1}`;
+            let name = base;
+            let n = 0;
+            while (existingNumbers.has(name)) {
+                n++;
+                name = `${base}-${n}`;
+            }
+            existingNumbers.add(name);
+            return name;
+        };
+
+        for (let i = 0; i < newSlots.length; i++) {
+            const slot = newSlots[i];
+            const { position, size, footprint } = slotToUnitGeometry(slot, plan);
+            const oldUnitId = mapping[i] ?? null;
+            const oldUnit = oldUnitId ? units.find((u: UnitRow) => u.id === oldUnitId) : null;
+            const unitNumber = unitNumberFor(slot, i);
+            const insert: Record<string, unknown> = {
+                building_id: buildingId,
+                unit_number: unitNumber,
+                floor: slot.floorIndex + 1,
+                position,
+                size,
+                footprint,
+                status: oldUnit?.status ?? 'available',
+                price: oldUnit?.price ?? defaultPrice,
+                display_name: oldUnit?.display_name ?? null,
+                internal_model_url: oldUnit?.internal_model_url ?? null,
+                mesh_id: `u-${unitNumber}`,
+            };
+            const res = await fetch(`${url}/rest/v1/units`, {
+                method: 'POST',
+                headers: { 'apikey': key, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+                body: JSON.stringify(insert),
+            });
+            if (!res.ok) {
+                setUnitFormError(await res.text() || 'Failed to create units');
+                return;
+            }
+        }
+
+        const now = new Date().toISOString();
+        for (const u of units) {
+            await fetch(`${url}/rest/v1/units?id=eq.${u.id}`, {
+                method: 'PATCH',
+                headers: { 'apikey': key, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+                body: JSON.stringify({ deleted_at: now }),
+            });
+        }
+
+        setUnitFormError(null);
+        await fetchBuilding(buildingId);
+        await fetchUnits(buildingId);
+        setNotification(`Building plan applied. ${newSlots.length} unit(s) created.`);
+    };
+
     if (loading && !building) {
         return (
             <div className="w-screen h-screen bg-[#0A0A0B] flex items-center justify-center">
@@ -493,10 +602,18 @@ export default function Engine() {
 
                 <div className="absolute top-8 right-8 flex flex-col items-end gap-6 z-30">
                     {isAdmin && viewMode === 'exterior' && (
-                        <button onClick={handleSuggestUnits} disabled={suggestLoading} className="glass-heavy px-5 py-2.5 rounded-full border border-white/10 flex items-center gap-2 text-[10px] tracking-widest uppercase font-bold text-[#C6A664] hover:bg-[#C6A664]/10 transition-colors disabled:opacity-50">
-                            {suggestLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                            Suggest units (AI)
-                        </button>
+                        <>
+                            <button onClick={handleSuggestUnits} disabled={suggestLoading} className="glass-heavy px-5 py-2.5 rounded-full border border-white/10 flex items-center gap-2 text-[10px] tracking-widest uppercase font-bold text-[#C6A664] hover:bg-[#C6A664]/10 transition-colors disabled:opacity-50">
+                                {suggestLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                                Suggest units (AI)
+                            </button>
+                            <button
+                                onClick={() => setBuildingPlanModalOpen(true)}
+                                className="glass-heavy px-5 py-2.5 rounded-full border border-white/10 flex items-center gap-2 text-[10px] tracking-widest uppercase font-bold text-[#C6A664] hover:bg-[#C6A664]/10 transition-colors"
+                            >
+                                {(building as { section_plan?: unknown })?.section_plan ? 'Update Building Plan' : 'Add Building Plan'}
+                            </button>
+                        </>
                     )}
                     {viewMode === 'exterior' && (
                         <>
@@ -571,7 +688,19 @@ export default function Engine() {
                 onOpenInteriorModal={() => setInteriorModalOpen(true)}
                 onCreateUnitComplete={handleCreateUnitFromModal}
                 onUnitCreatedWithInterior={(unitId) => setInteriorAddedPopup({ unitId })}
+                onOpenBuildingPlan={() => setBuildingPlanModalOpen(true)}
             />
+
+            {buildingId && (
+                <BuildingPlanModal
+                    open={buildingPlanModalOpen}
+                    onClose={() => setBuildingPlanModalOpen(false)}
+                    buildingId={buildingId}
+                    building={building}
+                    oldUnits={units}
+                    onApply={handleBuildingPlanApply}
+                />
+            )}
 
             <AnimatePresence>
                 {interiorAddedPopup && (

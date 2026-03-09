@@ -26,6 +26,8 @@ interface EngineState {
     unitPositionHandler: ((unitId: string, position: [number, number, number]) => Promise<void>) | null
     /** Set by Engine: persist unit size (admin only) */
     unitSizeHandler: ((unitId: string, size: [number, number, number]) => Promise<void>) | null
+    /** Set by Engine: persist unit Y-axis rotation in radians (admin only, prisms) */
+    unitRotationHandler: ((unitId: string, rotation: number) => Promise<void>) | null
     /** When true, next click in interior view captures 3D position for a new hotspot */
     hotspotPlacementMode: boolean
     /** After click in placement mode, holds [x,y,z] until form is submitted or cancelled */
@@ -48,6 +50,7 @@ interface EngineState {
     setScreenshotHandler: (handler: (() => Promise<string>) | null) => void
     setUnitPositionHandler: (handler: ((unitId: string, position: [number, number, number]) => Promise<void>) | null) => void
     setUnitSizeHandler: (handler: ((unitId: string, size: [number, number, number]) => Promise<void>) | null) => void
+    setUnitRotationHandler: (handler: ((unitId: string, rotation: number) => Promise<void>) | null) => void
     setHotspotPlacementMode: (on: boolean) => void
     setCapturedHotspotPosition: (pos: [number, number, number] | null) => void
     setSkyboxEnvironments: (list: SkyboxRow[]) => void
@@ -71,6 +74,7 @@ export const useEngineStore = create<EngineState>((set) => ({
     screenshotHandler: null,
     unitPositionHandler: null,
     unitSizeHandler: null,
+    unitRotationHandler: null,
     hotspotPlacementMode: false,
     capturedHotspotPosition: null,
     skyboxEnvironments: [],
@@ -139,6 +143,7 @@ export const useEngineStore = create<EngineState>((set) => ({
     setScreenshotHandler: (handler) => set({ screenshotHandler: handler }),
     setUnitPositionHandler: (handler) => set({ unitPositionHandler: handler }),
     setUnitSizeHandler: (handler) => set({ unitSizeHandler: handler }),
+    setUnitRotationHandler: (handler) => set({ unitRotationHandler: handler }),
     setHotspotPlacementMode: (on) => set({ hotspotPlacementMode: on, ...(on ? {} : { capturedHotspotPosition: null }) }),
     setCapturedHotspotPosition: (pos) => set({ capturedHotspotPosition: pos }),
     setSkyboxEnvironments: (list) => set({ skyboxEnvironments: list }),
@@ -163,6 +168,7 @@ export const useEngineStore = create<EngineState>((set) => ({
         screenshotHandler: null,
         unitPositionHandler: null,
         unitSizeHandler: null,
+        unitRotationHandler: null,
         hotspotPlacementMode: false,
         capturedHotspotPosition: null,
         skyboxEnvironments: [],
