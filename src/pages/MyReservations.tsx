@@ -46,14 +46,14 @@ export default function MyReservations() {
                         <ArrowLeft size={14} />
                         Back
                     </button>
-                    <h1 className="font-serif-display text-xl tracking-tight">My Reservations</h1>
+                    <h1 className="font-serif-display text-xl tracking-tight">My Allocations</h1>
                 </div>
             </nav>
 
             <main className="max-w-4xl mx-auto px-6 py-8">
                 {!profile ? (
                     <div className="glass rounded-2xl border border-white/5 p-12 text-center">
-                        <p className="text-[#94A3B8] text-sm">Sign in to view your reservations.</p>
+                        <p className="text-[#94A3B8] text-sm">Sign in to view your allocations.</p>
                     </div>
                 ) : loading ? (
                     <div className="flex items-center justify-center py-20">
@@ -61,7 +61,7 @@ export default function MyReservations() {
                     </div>
                 ) : list.length === 0 ? (
                     <div className="glass rounded-2xl border border-white/5 p-12 text-center">
-                        <p className="text-[#94A3B8] text-sm">You have no reservations yet.</p>
+                        <p className="text-[#94A3B8] text-sm">You have no allocations yet.</p>
                         <button
                             onClick={() => navigate('/')}
                             className="mt-4 px-4 py-2 rounded-lg text-[#C6A664] text-[10px] tracking-widest uppercase border border-[#C6A664]/40 hover:bg-[#C6A664]/10 transition-colors"

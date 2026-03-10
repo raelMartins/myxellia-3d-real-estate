@@ -84,7 +84,7 @@ export default function AdminReservations() {
                         <ArrowLeft size={14} />
                         Back
                     </button>
-                    <h1 className="font-serif-display text-xl tracking-tight">Reservations</h1>
+                    <h1 className="font-serif-display text-xl tracking-tight">Allocations</h1>
                 </div>
             </nav>
 
@@ -111,7 +111,7 @@ export default function AdminReservations() {
                     </div>
                 ) : list.length === 0 ? (
                     <div className="glass rounded-2xl border border-white/5 p-12 text-center">
-                        <p className="text-[#94A3B8] text-sm">No reservations in this tab.</p>
+                        <p className="text-[#94A3B8] text-sm">No allocations in this tab.</p>
                     </div>
                 ) : (
                     <ul className="space-y-3">

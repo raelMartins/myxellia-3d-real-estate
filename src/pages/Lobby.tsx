@@ -207,7 +207,7 @@ export default function Lobby() {
                             className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] tracking-widest uppercase font-semibold transition-all duration-200 hover:opacity-90 border border-white/15 text-[#94A3B8] hover:text-[#F5F7FA] hover:border-white/25"
                         >
                             <CalendarCheck size={12} />
-                            {isAdmin ? 'Reservations' : 'My Reservations'}
+                            {isAdmin ? 'Allocations' : 'My Allocations'}
                         </button>
                         {isAdmin && (
                             <>
@@ -263,7 +263,7 @@ export default function Lobby() {
                         <div className="glass rounded-xl p-6 border border-white/5">
                             <div className="flex items-center gap-3 text-[#94A3B8] text-[10px] tracking-[0.2em] uppercase mb-2">
                                 <Activity size={12} className="text-[#C6A664]" />
-                                Active Interest
+                                Allocation Requests
                             </div>
                             <div className="text-2xl font-light text-[#F5F7FA]">{reservationCount}</div>
                         </div>

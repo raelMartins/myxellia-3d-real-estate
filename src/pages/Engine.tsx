@@ -131,7 +131,7 @@ export default function Engine() {
             return;
         }
         setUnitStatus(selectedUnit, 'pending');
-        setNotification(`Reservation requested — Unit ${selectedUnitData?.unit_number}`);
+        setNotification(`Allocation requested — Unit ${selectedUnitData?.unit_number}`);
     };
 
     const handleUnitSaved = () => {

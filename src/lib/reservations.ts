@@ -105,7 +105,7 @@ export async function createReservation(
     accessToken: string | undefined
 ): Promise<{ error: string | null }> {
     if (!accessToken) {
-        return { error: 'You must be signed in to request a reservation.' };
+        return { error: 'You must be signed in to request an allocation.' };
     }
     const url = import.meta.env.VITE_SUPABASE_URL;
     const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -128,7 +128,7 @@ export async function createReservation(
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        return { error: (err as { message?: string }).message || res.statusText || 'Failed to create reservation.' };
+        return { error: (err as { message?: string }).message || res.statusText || 'Failed to create allocation.' };
     }
     return { error: null };
 }

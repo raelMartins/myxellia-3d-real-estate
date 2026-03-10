@@ -182,7 +182,7 @@ export default function EngineSidebarSelectedUnit({
                                             onClick={onReserve}
                                             className="w-full py-4 rounded-xl bg-[#C6A664] text-[#0A0A0B] text-[11px] tracking-[0.2em] font-bold uppercase transition-transform active:scale-95 shadow-lg shadow-[#C6A664]/20"
                                         >
-                                            Request Reservation
+                                            Request Allocation
                                         </button>
                                     ) : (
                                         <div className="w-full py-4 rounded-xl border border-white/5 bg-white/5 text-[#94A3B8] text-[11px] tracking-[0.2em] font-bold uppercase text-center flex items-center justify-center gap-2">

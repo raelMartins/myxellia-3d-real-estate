@@ -71,7 +71,7 @@ export default function ReservationDetailModal({
                 className="glass-heavy rounded-2xl border border-white/10 w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
             >
                 <div className="p-6 pb-4 flex items-center justify-between border-b border-white/5">
-                    <span className="text-[10px] tracking-[0.25em] text-[#C6A664] uppercase">Reservation details</span>
+                    <span className="text-[10px] tracking-[0.25em] text-[#C6A664] uppercase">Allocation details</span>
                     <button
                         type="button"
                         onClick={onClose}
@@ -143,7 +143,7 @@ export default function ReservationDetailModal({
                     )}
 
                     {!item && (
-                        <p className="text-[#94A3B8] text-sm">No reservation selected.</p>
+                        <p className="text-[#94A3B8] text-sm">No allocation selected.</p>
                     )}
                 </div>
 
