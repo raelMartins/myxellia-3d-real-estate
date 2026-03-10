@@ -282,15 +282,21 @@ export default function Engine() {
     };
 
     useEffect(() => {
-        setUnitPositionHandler(handleUpdateUnitPosition);
-        setUnitSizeHandler(handleUpdateUnitSize);
-        setUnitRotationHandler(handleUpdateUnitRotation);
+        if (isAdmin) {
+            setUnitPositionHandler(handleUpdateUnitPosition);
+            setUnitSizeHandler(handleUpdateUnitSize);
+            setUnitRotationHandler(handleUpdateUnitRotation);
+        } else {
+            setUnitPositionHandler(null);
+            setUnitSizeHandler(null);
+            setUnitRotationHandler(null);
+        }
         return () => {
             setUnitPositionHandler(null);
             setUnitSizeHandler(null);
             setUnitRotationHandler(null);
         };
-    }, [setUnitPositionHandler, setUnitSizeHandler, setUnitRotationHandler]);
+    }, [isAdmin, setUnitPositionHandler, setUnitSizeHandler, setUnitRotationHandler]);
 
     const handleSuggestUnits = async () => {
         if (!buildingId || !building) return;
