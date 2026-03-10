@@ -90,7 +90,7 @@ export default function ReservationDetailModal({
                                 Request date
                             </div>
                             <p className="text-[#F5F7FA] text-sm">
-                                {new Date(reservation.created_at).toLocaleDateString(undefined, {
+                                {new Date(reservation.created_at).toLocaleString(undefined, {
                                     dateStyle: 'medium',
                                     timeStyle: 'short',
                                 })}
