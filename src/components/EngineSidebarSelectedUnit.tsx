@@ -17,7 +17,7 @@ const STATUS_DOT: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
     available: 'Available',
     pending: 'Pending',
-    sold: 'Sold',
+    sold: 'Allocated',
 };
 
 interface EngineSidebarSelectedUnitProps {

@@ -130,12 +130,33 @@ export const useEngineStore = create<EngineState>((set) => ({
             });
             if (!res.ok) throw new Error(await res.text());
             const data = (await res.json()) as UnitRow[];
-
+            const unitList = data || [];
             const statuses: Record<string, UnitStatus> = {};
-            (data || []).forEach((u: UnitRow) => {
+            unitList.forEach((u: UnitRow) => {
                 statuses[u.id] = u.status as UnitStatus;
             });
-            set({ units: data || [], unitStatuses: statuses });
+
+            if (unitList.length > 0) {
+                const unitIds = unitList.map((u) => u.id).join(',');
+                const resRes = await fetch(
+                    `${url}/rest/v1/reservations?status=eq.approved&unit_id=in.(${unitIds})&select=unit_id`,
+                    {
+                        headers: {
+                            apikey: key,
+                            ...(token && { Authorization: `Bearer ${token}` }),
+                            Accept: 'application/json',
+                        },
+                    }
+                );
+                if (resRes.ok) {
+                    const approved = (await resRes.json()) as { unit_id: string }[];
+                    (approved || []).forEach((r) => {
+                        statuses[r.unit_id] = 'sold';
+                    });
+                }
+            }
+
+            set({ units: unitList, unitStatuses: statuses });
         } catch (_err) {
             set({ units: [] });
         }
