@@ -27,6 +27,7 @@ interface EngineSidebarProps {
     currentStatus: string | null;
     unitFormError: string | null;
     isAdmin: boolean;
+    singleUnitMode?: boolean;
     onReserve: () => void;
     onUnitSaved: () => void;
     onAddUnit: (unitNumber: string, floor: number) => Promise<void>;
@@ -47,6 +48,7 @@ export default function EngineSidebar({
     currentStatus,
     unitFormError,
     isAdmin,
+    singleUnitMode = false,
     onReserve,
     onUnitSaved,
     onAddUnit: _onAddUnit,
@@ -107,18 +109,22 @@ export default function EngineSidebar({
                 >
                     <PanelLeft size={22} strokeWidth={1.5} />
                 </button>
-            ) : selectedUnit ? (
+            ) : selectedUnit || singleUnitMode ? (
                 <>
                     <div className="shrink-0 p-4 pb-2 flex items-center justify-between gap-2">
                         <button
                             onClick={() => {
-                                setSelectedUnit(null);
-                                setUnitFormError(null);
+                                if (singleUnitMode) {
+                                    navigate(-1);
+                                } else {
+                                    setSelectedUnit(null);
+                                    setUnitFormError(null);
+                                }
                             }}
                             className="flex items-center gap-2 text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase hover:text-[#C6A664] transition-colors group"
                         >
                             <ArrowLeft size={12} className="group-hover:-translate-x-1 transition-transform" />
-                            Back
+                            {singleUnitMode ? 'Back' : 'Back'}
                         </button>
                         <button
                             type="button"

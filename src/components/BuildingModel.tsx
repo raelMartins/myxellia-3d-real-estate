@@ -100,7 +100,7 @@ function PlaceholderBuilding() {
 }
 
 export default function BuildingModel() {
-    const { building, units, setModelBoundsXZ } = useEngineStore();
+    const { building, units, setModelBoundsXZ, focusUnitId } = useEngineStore();
     const onBounds = useCallback((b: { minX: number; maxX: number; minZ: number; maxZ: number }) => setModelBoundsXZ(b), [setModelBoundsXZ]);
     useEffect(() => {
         if (!building?.model_url) setModelBoundsXZ(null);
@@ -125,7 +125,7 @@ export default function BuildingModel() {
         const r = (u as { rotation?: number | null }).rotation;
         return typeof r === 'number' && Number.isFinite(r) ? r : 0;
     };
-    const displayUnits: DisplayUnit[] = units.length > 0
+    const allDisplayUnits: DisplayUnit[] = units.length > 0
         ? units.map((u: UnitRow) => ({
             id: u.id,
             position: parsePosition(u),
@@ -134,6 +134,10 @@ export default function BuildingModel() {
             rotation: parseRotation(u),
         }))
         : !building?.model_url ? FALLBACK_UNITS : [];
+
+    const displayUnits = focusUnitId
+        ? allDisplayUnits.filter((u) => u.id === focusUnitId)
+        : allDisplayUnits;
 
     return (
         <group>

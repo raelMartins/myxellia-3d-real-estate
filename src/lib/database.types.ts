@@ -238,3 +238,5 @@ export interface Database {
 }
 
 export type UnitRow = Database['public']['Tables']['units']['Row'];
+export type ReservationRow = Database['public']['Tables']['reservations']['Row'];
+export type ProfileRow = Database['public']['Tables']['profiles']['Row'];

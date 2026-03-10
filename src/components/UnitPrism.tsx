@@ -232,7 +232,7 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
                     roughness={0.3}
                     metalness={0.6}
                     transparent
-                    opacity={isSelected ? 0.95 : 0.4}
+                    opacity={isSelected ? 0.55 : 0.4}
                 />
             </mesh>
             <UnitBoxCornerHandles

@@ -9,6 +9,8 @@ import PropertyDetail from './pages/PropertyDetail';
 import DeployProject from './pages/DeployProject';
 import Skyboxes from './pages/Skyboxes';
 import SkyboxPreview from './pages/SkyboxPreview';
+import AdminReservations from './pages/AdminReservations';
+import MyReservations from './pages/MyReservations';
 
 /* ──────────────────────────────────────────────────
    Cinematic easing shared across auth page
@@ -273,6 +275,8 @@ export default function App() {
         <Route path="/deploy" element={<DeployProject />} />
         <Route path="/skyboxes" element={<Skyboxes />} />
         <Route path="/skyboxes/preview/:id" element={<SkyboxPreview />} />
+        <Route path="/reservations" element={<MyReservations />} />
+        <Route path="/admin/reservations" element={<AdminReservations />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

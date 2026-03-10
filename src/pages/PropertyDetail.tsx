@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../lib/database.types';
 import { ArrowLeft, Box, MapPin, Layers, BedDouble, Bath, Maximize2, Play, ExternalLink } from 'lucide-react';
-import { formatCentsToCurrency } from '../lib/currency';
+import { computeBuildingDetailStats } from '../lib/buildingDetailStats';
+import PropertyDetailFloorPlan from '../components/PropertyDetailFloorPlan';
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 
@@ -12,11 +13,13 @@ const FALLBACK_HERO = 'https://images.unsplash.com/photo-1486325212027-8081e4852
 
 type BuildingRow = Database['public']['Tables']['buildings']['Row'];
 type BuildingDetail = BuildingRow & { available_units?: number; floors?: string | number };
+type UnitForDetail = Pick<Database['public']['Tables']['units']['Row'], 'status' | 'bedrooms' | 'bathrooms' | 'area_sqm' | 'floor' | 'price'>;
 
 export default function PropertyDetail() {
     const { buildingId } = useParams<{ buildingId: string }>();
     const navigate = useNavigate();
     const [bldg, setBldg] = useState<BuildingDetail | null>(null);
+    const [units, setUnits] = useState<UnitForDetail[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -24,19 +27,26 @@ export default function PropertyDetail() {
         if (!id) return;
         setLoading(true);
         setBldg(null);
+        setUnits([]);
         let cancelled = false;
-        async function loadBldg() {
+        async function load() {
             try {
-                const { data, error } = await supabase.from('buildings').select('*').eq('id', id!).single();
-                if (error) throw error;
-                if (!cancelled) setBldg(data);
+                const [bldgRes, unitsRes] = await Promise.all([
+                    supabase.from('buildings').select('*').eq('id', id!).single(),
+                    supabase.from('units').select('status, bedrooms, bathrooms, area_sqm, floor, price').eq('building_id', id!).is('deleted_at', null),
+                ]);
+                if (bldgRes.error) throw bldgRes.error;
+                if (!cancelled) {
+                    setBldg(bldgRes.data);
+                    setUnits(unitsRes.data || []);
+                }
             } catch {
                 if (!cancelled) setBldg(null);
             } finally {
                 if (!cancelled) setLoading(false);
             }
         }
-        loadBldg();
+        load();
         return () => { cancelled = true; };
     }, [buildingId]);
 
@@ -57,9 +67,8 @@ export default function PropertyDetail() {
         );
     }
 
-    const totalUnits = bldg.total_units || 0;
-    const availUnits = (bldg as BuildingDetail).available_units ?? 0;
-    const availPct = totalUnits > 0 ? Math.round((availUnits / totalUnits) * 100) : 0;
+    const stats = computeBuildingDetailStats(units, bldg);
+    const { totalUnits, availUnits, availPct, floorsValue, bedroomsValue, bathroomsValue, areaValue, startingPriceDisplay } = stats;
     const heroes = [
         bldg.hero_url ?? undefined,
         FALLBACK_HERO
@@ -67,12 +76,12 @@ export default function PropertyDetail() {
     const heroImage = heroes.find((h): h is string => !!h) ?? FALLBACK_HERO;
 
     const highlights = [
-        { icon: Layers, label: 'Floors', value: bldg.floors || '42' },
-        { icon: Box, label: 'Total Units', value: bldg.total_units || '120' },
-        { icon: BedDouble, label: 'Bedrooms', value: '1 – 5' },
-        { icon: Bath, label: 'Bathrooms', value: '1 – 4' },
-        { icon: Maximize2, label: 'Area Range', value: '680 – 4,200 sqft' },
-        { icon: MapPin, label: 'Location', value: bldg.location ?? '' },
+        { icon: Layers, label: 'Floors', value: floorsValue },
+        { icon: Box, label: 'Total Units', value: totalUnits },
+        { icon: BedDouble, label: 'Bedrooms', value: bedroomsValue },
+        { icon: Bath, label: 'Bathrooms', value: bathroomsValue },
+        { icon: Maximize2, label: 'Area Range', value: areaValue },
+        { icon: MapPin, label: 'Location', value: bldg.location ?? '—' },
     ];
 
     return (
@@ -149,43 +158,7 @@ export default function PropertyDetail() {
                         {/* Floor Plan — from section_plan when present */}
                         <div>
                             <div className="text-[10px] tracking-[0.25em] text-[#C6A664] uppercase mb-4">Floor Plan</div>
-                            <div className="glass rounded-2xl overflow-hidden h-[280px] flex items-center justify-center relative">
-                                <div className="absolute inset-0 opacity-20" style={{
-                                    backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(198,166,100,0.3) 0%, transparent 70%)',
-                                }} />
-                                {bldg.section_plan?.sections?.length ? (
-                                    <svg width="340" height="220" viewBox="-0.05 -0.05 1.1 1.1" preserveAspectRatio="xMidYMid meet" className="w-full h-full" fill="none">
-                                        <rect x={0} y={0} width={1} height={1} stroke="#C6A664" strokeWidth="0.007" fill="none" />
-                                        {bldg.section_plan.sections.map((sec, idx) => {
-                                            const pts = sec.footprint;
-                                            const pathD = pts.length >= 2 ? pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${1 - p[1]}`).join(' ') + ' Z' : '';
-                                            const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length;
-                                            const cy = 1 - (pts.reduce((a, p) => a + p[1], 0) / pts.length);
-                                            return (
-                                                <g key={idx}>
-                                                    <path d={pathD} stroke="#C6A664" strokeWidth="0.005" fill="rgba(198,166,100,0.08)" />
-                                                    <text x={cx} y={cy} fill="#C6A664" fontSize="0.028" textAnchor="middle" dominantBaseline="middle" opacity={0.9}>{sec.label}</text>
-                                                </g>
-                                            );
-                                        })}
-                                    </svg>
-                                ) : (
-                                    <svg width="340" height="220" viewBox="0 0 340 220" fill="none" className="opacity-50">
-                                        <rect x="20" y="20" width="300" height="180" rx="2" stroke="#C6A664" strokeWidth="1.5" fill="none" />
-                                        <rect x="20" y="20" width="120" height="80" stroke="#C6A664" strokeWidth="1" fill="none" opacity="0.6" />
-                                        <rect x="140" y="20" width="80" height="80" stroke="#C6A664" strokeWidth="1" fill="none" opacity="0.6" />
-                                        <rect x="220" y="20" width="100" height="80" stroke="#C6A664" strokeWidth="1" fill="none" opacity="0.6" />
-                                        <rect x="20" y="100" width="180" height="100" stroke="#C6A664" strokeWidth="1" fill="none" opacity="0.6" />
-                                        <rect x="200" y="100" width="120" height="100" stroke="#C6A664" strokeWidth="1" fill="none" opacity="0.6" />
-                                        <text x="65" y="65" fill="#C6A664" fontSize="9" textAnchor="middle" opacity="0.7">Living Room</text>
-                                        <text x="180" y="65" fill="#C6A664" fontSize="9" textAnchor="middle" opacity="0.7">Kitchen</text>
-                                        <text x="268" y="65" fill="#C6A664" fontSize="9" textAnchor="middle" opacity="0.7">Master Suite</text>
-                                        <text x="108" y="155" fill="#C6A664" fontSize="9" textAnchor="middle" opacity="0.7">Terrace</text>
-                                        <text x="258" y="155" fill="#C6A664" fontSize="9" textAnchor="middle" opacity="0.7">Bedroom 2</text>
-                                    </svg>
-                                )}
-                                <div className="absolute bottom-4 right-4 text-[9px] tracking-widest text-[#94A3B8] uppercase">Schematic · Not to Scale</div>
-                            </div>
+                            <PropertyDetailFloorPlan sectionPlan={bldg.section_plan} />
                         </div>
                     </motion.div>
 
@@ -200,11 +173,7 @@ export default function PropertyDetail() {
                         <div className="glass rounded-2xl p-6" style={{ borderColor: 'rgba(198,166,100,0.25)' }}>
                             <div className="text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase mb-1">Starting From</div>
                             <div className="font-serif-display text-3xl text-[#C6A664] mb-4">
-                                {bldg.starting_price
-                                    ? (isNaN(Number(bldg.starting_price))
-                                        ? bldg.starting_price
-                                        : formatCentsToCurrency(Number(bldg.starting_price)))
-                                    : '$2.4M'}
+                                {startingPriceDisplay}
                             </div>
                             <div className="flex justify-between text-[11px] text-[#94A3B8] mb-2">
                                 <span>Available Units</span>

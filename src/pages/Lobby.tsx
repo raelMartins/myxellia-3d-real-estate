@@ -3,16 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth.store';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
-import { LogOut, ArrowRight, Activity, Users, TrendingUp, MapPin, Layers, Plus, ImagePlus } from 'lucide-react';
+import { LogOut, ArrowRight, Activity, Users, TrendingUp, MapPin, Layers, Plus, ImagePlus, CalendarCheck } from 'lucide-react';
 import type { Database } from '../lib/database.types';
-import { formatCentsToCurrency } from '../lib/currency';
+import { formatCentsToCurrency, formatCentsToShortCurrency } from '../lib/currency';
 
 type BuildingRow = Database['public']['Tables']['buildings']['Row'];
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 
 /* ── Tilt Card Component ── */
-function BuildingCard({ building, index }: { building: BuildingRow & { badge?: string; available_units?: number; hero_url?: string; starting_price?: string }; index: number }) {
+function BuildingCard({ building, index }: { building: BuildingRow & { badge?: string; available_units?: number; hero_url?: string | null; starting_price?: string | null }; index: number }) {
     const navigate = useNavigate();
     const cardRef = useRef<HTMLDivElement>(null);
     const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -124,15 +124,52 @@ export default function Lobby() {
     const { profile, signOut } = useAuthStore();
     const isAdmin = profile?.role === 'admin';
 
-    const [buildings, setBuildings] = useState<(BuildingRow & { badge?: string; available_units?: number; hero_url?: string; starting_price?: string })[]>([]);
+    type BuildingWithMeta = BuildingRow & { badge?: string; available_units?: number; hero_url?: string | null; starting_price?: string | null };
+    const [buildings, setBuildings] = useState<BuildingWithMeta[]>([]);
     const [loading, setLoading] = useState(true);
+    const [portfolioValue, setPortfolioValue] = useState<string>('$0');
+    const [clientCount, setClientCount] = useState<number>(0);
+    const [reservationCount, setReservationCount] = useState<number>(0);
 
     useEffect(() => {
         async function loadBuildings() {
             try {
                 const { data, error } = await supabase.from('buildings').select('*').order('created_at', { ascending: false });
                 if (error) throw error;
-                setBuildings(data || []);
+                const list = (data || []) as BuildingRow[];
+                if (profile?.role === 'admin') {
+                    const [unitsRes, profilesRes, reservationsRes] = await Promise.all([
+                        supabase.from('units').select('building_id, status, price').is('deleted_at', null),
+                        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'client'),
+                        supabase.from('reservations').select('id', { count: 'exact', head: true }),
+                    ]);
+                    const units = (unitsRes.data || []) as { building_id: string; status: string; price: number | null }[];
+                    let totalCents = 0;
+                    for (const u of units) {
+                        const p = u.price;
+                        if (typeof p === 'number' && Number.isFinite(p)) totalCents += p;
+                    }
+                    setPortfolioValue(formatCentsToShortCurrency(totalCents));
+                    setClientCount(profilesRes.count ?? 0);
+                    setReservationCount(reservationsRes.count ?? 0);
+                    const byBuilding: Record<string, { total: number; available: number }> = {};
+                    for (const u of units) {
+                        const bid = u.building_id;
+                        if (!byBuilding[bid]) byBuilding[bid] = { total: 0, available: 0 };
+                        byBuilding[bid].total += 1;
+                        if (u.status === 'available') byBuilding[bid].available += 1;
+                    }
+                    setBuildings(list.map((b) => {
+                        const counts = byBuilding[b.id];
+                        return {
+                            ...b,
+                            total_units: counts ? counts.total : b.total_units,
+                            available_units: counts ? counts.available : 0,
+                        } as BuildingWithMeta;
+                    }));
+                } else {
+                    setBuildings(list as BuildingWithMeta[]);
+                }
             } catch {
                 setBuildings([]);
             } finally {
@@ -140,7 +177,7 @@ export default function Lobby() {
             }
         }
         loadBuildings();
-    }, []);
+    }, [profile?.role]);
 
     if (loading) {
         return (
@@ -165,6 +202,13 @@ export default function Lobby() {
                     </div>
 
                     <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => navigate(isAdmin ? '/admin/reservations' : '/reservations')}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] tracking-widest uppercase font-semibold transition-all duration-200 hover:opacity-90 border border-white/15 text-[#94A3B8] hover:text-[#F5F7FA] hover:border-white/25"
+                        >
+                            <CalendarCheck size={12} />
+                            {isAdmin ? 'Reservations' : 'My Reservations'}
+                        </button>
                         {isAdmin && (
                             <>
                                 <button
@@ -214,21 +258,21 @@ export default function Lobby() {
                                 <TrendingUp size={12} className="text-[#C6A664]" />
                                 Portfolio Value
                             </div>
-                            <div className="text-2xl font-light text-[#F5F7FA]">$142.8M</div>
+                            <div className="text-2xl font-light text-[#F5F7FA]">{portfolioValue}</div>
                         </div>
                         <div className="glass rounded-xl p-6 border border-white/5">
                             <div className="flex items-center gap-3 text-[#94A3B8] text-[10px] tracking-[0.2em] uppercase mb-2">
                                 <Activity size={12} className="text-[#C6A664]" />
                                 Active Interest
                             </div>
-                            <div className="text-2xl font-light text-[#F5F7FA]">84 Leads</div>
+                            <div className="text-2xl font-light text-[#F5F7FA]">{reservationCount}</div>
                         </div>
                         <div className="glass rounded-xl p-6 border border-white/5">
                             <div className="flex items-center gap-3 text-[#94A3B8] text-[10px] tracking-[0.2em] uppercase mb-2">
                                 <Users size={12} className="text-[#C6A664]" />
                                 Global Buyers
                             </div>
-                            <div className="text-2xl font-light text-[#F5F7FA]">2,410</div>
+                            <div className="text-2xl font-light text-[#F5F7FA]">{clientCount}</div>
                         </div>
                     </motion.div>
                 )}

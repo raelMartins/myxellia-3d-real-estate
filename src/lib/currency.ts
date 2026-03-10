@@ -44,6 +44,23 @@ export function formatCentsToCurrency(cents: number | null | undefined): string 
 }
 
 /**
+ * Formats cents into a short currency string (e.g. 54210000 -> "$542.1k", 4260000000 -> "$42.6M")
+ */
+export function formatCentsToShortCurrency(cents: number | null | undefined): string {
+    if (cents == null || typeof cents !== 'number' || !Number.isFinite(cents)) return '$0';
+    const dollars = cents / 100;
+    if (dollars >= 1e6) {
+        const m = dollars / 1e6;
+        return `$${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)}M`;
+    }
+    if (dollars >= 1e3) {
+        const k = dollars / 1e3;
+        return `$${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}k`;
+    }
+    return `$${Math.round(dollars)}`;
+}
+
+/**
  * Parses a display string into cents. 
  * It strips everything but digits and treats the result as the decimal value.
  * Example: "$1,250.50" -> 125050

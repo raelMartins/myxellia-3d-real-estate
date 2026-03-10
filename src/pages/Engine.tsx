@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Sunset, Moon, BellRing, Sparkles, Loader2 } from 'lucide-react';
 import { ErrorBoundary, type FallbackProps } from 'react-error-boundary';
@@ -19,6 +19,7 @@ import EngineContextCard from '../components/EngineContextCard';
 import SetDefaultSkyboxButton from '../components/SetDefaultSkyboxButton';
 import { useEngineStore } from '../store/engine.store';
 import { useAuthStore } from '../store/auth.store';
+import { createReservation } from '../lib/reservations';
 import { suggestUnits, type UnitSuggestion } from '../lib/ai';
 import { fetchSkyboxEnvironments } from '../lib/skybox';
 import type { Database } from '../lib/database.types';
@@ -49,13 +50,16 @@ function EngineErrorFallback({ resetErrorBoundary }: FallbackProps) {
 
 export default function Engine() {
     const { buildingId } = useParams();
+    const [searchParams] = useSearchParams();
+    const focusUnitIdFromUrl = searchParams.get('unitId');
+
     const {
         building, units, loading,
         selectedUnit, viewMode, lightingMode, unitStatuses, notification,
-        skyboxEnvironments, selectedSkyboxUrl, modelBoundsXZ,
+        skyboxEnvironments, selectedSkyboxUrl, modelBoundsXZ, focusUnitId,
         fetchBuilding, fetchUnits, setSelectedUnit, setViewMode, setLightingMode,
         setUnitStatus, setNotification, requestScreenshot, setUnitPositionHandler, setUnitSizeHandler, setUnitRotationHandler,
-        setSkyboxEnvironments, setSelectedSkyboxUrl,
+        setSkyboxEnvironments, setSelectedSkyboxUrl, setFocusUnitId,
         resetEngine,
     } = useEngineStore();
 
@@ -70,16 +74,25 @@ export default function Engine() {
     const [interiorAddedPopup, setInteriorAddedPopup] = useState<{ unitId: string } | null>(null);
     const [buildingPlanModalOpen, setBuildingPlanModalOpen] = useState(false);
 
-    const { profile } = useAuthStore();
+    const { profile, user } = useAuthStore();
     const isAdmin = profile?.role === 'admin';
 
     useEffect(() => {
         if (buildingId) {
+            setFocusUnitId(focusUnitIdFromUrl);
             fetchBuilding(buildingId);
             fetchUnits(buildingId);
         }
         return () => { resetEngine(); };
-    }, [buildingId, fetchBuilding, fetchUnits, resetEngine]);
+    }, [buildingId, focusUnitIdFromUrl, fetchBuilding, fetchUnits, resetEngine, setFocusUnitId]);
+
+    useEffect(() => {
+        if (!focusUnitIdFromUrl || units.length === 0) return;
+        const exists = units.some((u: UnitRow) => u.id === focusUnitIdFromUrl);
+        if (exists) {
+            setSelectedUnit(focusUnitIdFromUrl);
+        }
+    }, [focusUnitIdFromUrl, units, setSelectedUnit]);
     useEffect(() => {
         const token = () => useAuthStore.getState().session?.access_token ?? undefined;
         fetchSkyboxEnvironments(token).then(setSkyboxEnvironments);
@@ -109,8 +122,14 @@ export default function Engine() {
     const selectedUnitData = units.find((u: UnitRow) => u.id === selectedUnit);
     const currentStatus = selectedUnit ? (unitStatuses[selectedUnit] ?? 'available') : null;
 
-    const handleReserve = () => {
-        if (!selectedUnit) return;
+    const handleReserve = async () => {
+        if (!selectedUnit || !user?.id) return;
+        const token = useAuthStore.getState().session?.access_token;
+        const { error } = await createReservation(selectedUnit, user.id, token);
+        if (error) {
+            setNotification(error);
+            return;
+        }
         setUnitStatus(selectedUnit, 'pending');
         setNotification(`Reservation requested — Unit ${selectedUnitData?.unit_number}`);
     };
@@ -683,6 +702,7 @@ export default function Engine() {
                 currentStatus={currentStatus}
                 unitFormError={unitFormError}
                 isAdmin={!!isAdmin}
+                singleUnitMode={!!focusUnitId}
                 onReserve={handleReserve}
                 onUnitSaved={handleUnitSaved}
                 onAddUnit={handleAddUnit}
