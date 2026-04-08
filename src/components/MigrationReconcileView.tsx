@@ -1,6 +1,8 @@
-import type { UnitRow } from '../lib/database.types';
+'use client';
+
+import type { UnitRow } from '@/lib/database.types';
 import type { NewUnitSlot } from './SectionFloorsConfig';
-import { formatCentsToCurrency } from '../lib/currency';
+import { formatCentsToCurrency } from '@/lib/currency';
 
 interface MigrationReconcileViewProps {
     oldUnits: UnitRow[];

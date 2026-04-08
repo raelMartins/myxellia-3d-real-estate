@@ -1,29 +1,31 @@
+'use client';
+
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Sunset, Moon, BellRing, Sparkles, Loader2 } from 'lucide-react';
 import { ErrorBoundary, type FallbackProps } from 'react-error-boundary';
-import MyxelliaCanvas from '../components/MyxelliaCanvas';
-import EngineSidebar from '../components/EngineSidebar';
-import EngineInteriorView from '../components/EngineInteriorView';
-import SuggestUnitsModal from '../components/SuggestUnitsModal';
-import InteriorUploadModal from '../components/InteriorUploadModal';
-import type { UnitIdentityValues } from '../components/UnitIdentityForm';
-import type { GeometryData } from '../components/UnitGeometryStep';
-import type { UnitCreateResult } from '../components/AddUnitsModal';
-import BuildingPlanModal from '../components/BuildingPlanModal';
-import type { BuildingPlanApplyPayload } from '../components/BuildingPlanModal';
-import { slotToUnitGeometry } from '../lib/sectionPlanUnits';
-import EngineViewControls from '../components/EngineViewControls';
-import EngineContextCard from '../components/EngineContextCard';
-import SetDefaultSkyboxButton from '../components/SetDefaultSkyboxButton';
-import { useEngineStore } from '../store/engine.store';
-import { useAuthStore } from '../store/auth.store';
-import { createReservation } from '../lib/reservations';
-import { suggestUnits, type UnitSuggestion } from '../lib/ai';
-import { fetchSkyboxEnvironments } from '../lib/skybox';
-import type { Database } from '../lib/database.types';
-import type { InteriorHotspot } from '../lib/database.types';
+import MyxelliaCanvas from '@/engine/components/MyxelliaCanvas';
+import EngineSidebar from '@/components/EngineSidebar';
+import EngineInteriorView from '@/engine/components/EngineInteriorView';
+import SuggestUnitsModal from '@/components/SuggestUnitsModal';
+import InteriorUploadModal from '@/components/InteriorUploadModal';
+import type { UnitIdentityValues } from '@/components/UnitIdentityForm';
+import type { GeometryData } from '@/components/UnitGeometryStep';
+import type { UnitCreateResult } from '@/components/AddUnitsModal';
+import BuildingPlanModal from '@/components/BuildingPlanModal';
+import type { BuildingPlanApplyPayload } from '@/components/BuildingPlanModal';
+import { slotToUnitGeometry } from '@/lib/sectionPlanUnits';
+import EngineViewControls from '@/engine/components/EngineViewControls';
+import EngineContextCard from '@/components/EngineContextCard';
+import SetDefaultSkyboxButton from '@/components/SetDefaultSkyboxButton';
+import { useEngineStore } from '@/engine/store/engine.store';
+import { useAuthStore } from '@/store/auth.store';
+import { createReservation } from '@/lib/reservations';
+import { suggestUnits, type UnitSuggestion } from '@/lib/ai';
+import { fetchSkyboxEnvironments } from '@/lib/skybox';
+import type { Database } from '@/lib/database.types';
+import type { InteriorHotspot } from '@/lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
 const ease = [0.2, 0.8, 0.2, 1] as const;
@@ -35,23 +37,25 @@ const LIGHTING_OPTS: { mode: LightingMode; icon: typeof Sun; label: string }[] =
 ];
 
 function EngineErrorFallback({ resetErrorBoundary }: FallbackProps) {
-    const navigate = useNavigate();
-    const { buildingId } = useParams();
+    const router = useRouter();
+    const params = useParams();
+    const buildingId = (params?.buildingId as string | undefined) ?? undefined;
     return (
         <div className="w-screen h-screen bg-[#0A0A0B] flex flex-col items-center justify-center gap-6 p-8">
             <p className="text-red-400/90 text-sm text-center max-w-md">Something went wrong loading the engine.</p>
             <div className="flex gap-4">
                 <button onClick={resetErrorBoundary} className="px-4 py-2 rounded-lg bg-white/10 text-[#F5F7FA] text-xs uppercase tracking-wider">Try again</button>
-                <button onClick={() => navigate(buildingId ? `/detail/${buildingId}` : '/')} className="px-4 py-2 rounded-lg bg-[#C6A664]/20 text-[#C6A664] text-xs uppercase tracking-wider">Back to project</button>
+                <button onClick={() => router.push(buildingId ? `/detail/${buildingId}` : '/')} className="px-4 py-2 rounded-lg bg-[#C6A664]/20 text-[#C6A664] text-xs uppercase tracking-wider">Back to project</button>
             </div>
         </div>
     );
 }
 
 export default function Engine() {
-    const { buildingId } = useParams();
-    const [searchParams] = useSearchParams();
-    const focusUnitIdFromUrl = searchParams.get('unitId');
+    const params = useParams();
+    const buildingId = (params?.buildingId as string | undefined) ?? undefined;
+    const searchParams = useSearchParams();
+    const focusUnitIdFromUrl = searchParams?.get('unitId') ?? null;
 
     const {
         building, units, loading,
@@ -145,8 +149,8 @@ export default function Engine() {
         setUnitFormError(null);
     };
     const handleSaveHotspots = async (unitId: string, hotspots: InteriorHotspot[]) => {
-        const url = import.meta.env.VITE_SUPABASE_URL;
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
         if (!url || !key || !token || !buildingId) return;
         const res = await fetch(`${url}/rest/v1/units?id=eq.${unitId}`, {
@@ -170,8 +174,8 @@ export default function Engine() {
         }
         const rawPrice = (building as { starting_price?: string }).starting_price;
         const defaultPrice = rawPrice && !isNaN(Number(rawPrice)) ? Number(rawPrice) : 120000000;
-        const url = import.meta.env.VITE_SUPABASE_URL;
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
         if (!url || !key || !token) {
             setUnitFormError('Missing Supabase config or session. Please sign in.');
@@ -206,8 +210,8 @@ export default function Engine() {
 
     const handleDeleteUnit = async (unitId: string) => {
         if (!buildingId) return;
-        const url = import.meta.env.VITE_SUPABASE_URL;
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
         if (!url || !key || !token) {
             setUnitFormError('Missing Supabase config or session. Please sign in.');
@@ -237,8 +241,8 @@ export default function Engine() {
     const handleUpdateUnitPosition = async (unitId: string, position: [number, number, number]) => {
         const { buildingId: bid } = useEngineStore.getState();
         if (!bid) return;
-        const url = import.meta.env.VITE_SUPABASE_URL;
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
         if (!url || !key || !token) return;
         const res = await fetch(`${url}/rest/v1/units?id=eq.${unitId}`, {
@@ -259,8 +263,8 @@ export default function Engine() {
     const handleUpdateUnitSize = async (unitId: string, size: [number, number, number]) => {
         const { buildingId: bid } = useEngineStore.getState();
         if (!bid) return;
-        const url = import.meta.env.VITE_SUPABASE_URL;
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
         if (!url || !key || !token) return;
         const res = await fetch(`${url}/rest/v1/units?id=eq.${unitId}`, {
@@ -281,8 +285,8 @@ export default function Engine() {
     const handleUpdateUnitRotation = async (unitId: string, rotation: number) => {
         const { buildingId: bid } = useEngineStore.getState();
         if (!bid) return;
-        const url = import.meta.env.VITE_SUPABASE_URL;
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
         if (!url || !key || !token) return;
         const res = await fetch(`${url}/rest/v1/units?id=eq.${unitId}`, {
@@ -373,8 +377,8 @@ export default function Engine() {
                 status: 'available',
                 mesh_id: `u-${s.label}`,
             }));
-            const url = import.meta.env.VITE_SUPABASE_URL;
-            const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
             const token = useAuthStore.getState().session?.access_token;
             if (!url || !key || !token) throw new Error('Missing Supabase config or session. Please sign in.');
             const res = await fetch(`${url}/rest/v1/units`, {
@@ -416,8 +420,8 @@ export default function Engine() {
             setUnitFormError(`Unit ${trimmed} already exists.`);
             return null;
         }
-        const url = import.meta.env.VITE_SUPABASE_URL;
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
         if (!url || !key || !token) {
             setUnitFormError('Missing Supabase config or session. Please sign in.');
@@ -495,8 +499,8 @@ export default function Engine() {
 
     const handleBuildingPlanApply = async (payload: BuildingPlanApplyPayload) => {
         if (!buildingId || !building) return;
-        const url = import.meta.env.VITE_SUPABASE_URL;
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
         if (!url || !key || !token) {
             setUnitFormError('Missing Supabase config or session.');

@@ -1,6 +1,8 @@
+'use client';
+
 import { useRef, useCallback } from 'react';
-import { isSimplePolygon, type Point2 } from '../lib/polygonUtils';
-import type { SectionPlanSection } from '../lib/database.types';
+import { isSimplePolygon, type Point2 } from '@/lib/polygonUtils';
+import type { SectionPlanSection } from '@/lib/database.types';
 
 const DEFAULT_SIZE = 320;
 const PAD = 0.02;

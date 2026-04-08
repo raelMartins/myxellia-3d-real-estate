@@ -4,13 +4,13 @@
  */
 
 const getFunctionsUrl = () => {
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  if (!url) throw new Error('VITE_SUPABASE_URL is missing');
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) throw new Error('NEXT_PUBLIC_SUPABASE_URL is missing');
   return `${url.replace(/\/$/, '')}/functions/v1`;
 };
 
 const getAuthHeaders = () => {
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${key || ''}`,

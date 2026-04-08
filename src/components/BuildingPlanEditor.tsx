@@ -1,6 +1,8 @@
+'use client';
+
 import { useState, useCallback } from 'react';
-import { regularPolygonVertices, polygonPairsIntersect, type Point2 } from '../lib/polygonUtils';
-import type { SectionPlan, SectionPlanSection } from '../lib/database.types';
+import { regularPolygonVertices, polygonPairsIntersect, type Point2 } from '@/lib/polygonUtils';
+import type { SectionPlan, SectionPlanSection } from '@/lib/database.types';
 import BirdEyeCanvas from './BirdEyeCanvas';
 import BuildingPlanTopDownView, { type PlanViewSize } from './BuildingPlanTopDownView';
 import SectionListSidebar from './SectionListSidebar';

@@ -1,8 +1,10 @@
+'use client';
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Center, Environment, ContactShadows, OrbitControls } from '@react-three/drei';
 import { Upload, Box, Eye, X } from 'lucide-react';
-import { ModelLoader } from './BuildingModel';
+import { ModelLoader } from '@/engine/components/BuildingModel';
 
 const ACCEPTED = ['.glb', '.gltf', '.fbx', '.obj'];
 

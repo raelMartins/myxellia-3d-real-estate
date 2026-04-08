@@ -1,14 +1,17 @@
+'use client';
+
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { fetchSkyboxById } from '../lib/skybox';
-import { useAuthStore } from '../store/auth.store';
-import SkyboxPreviewCanvas from '../components/SkyboxPreviewCanvas';
+import { fetchSkyboxById } from '@/lib/skybox';
+import { useAuthStore } from '@/store/auth.store';
+import SkyboxPreviewCanvas from '@/components/SkyboxPreviewCanvas';
 
 export default function SkyboxPreview() {
-    const { id } = useParams<{ id: string }>();
-    const navigate = useNavigate();
+    const params = useParams();
+    const id = (params?.id as string | undefined) ?? undefined;
+    const router = useRouter();
     const [envUrl, setEnvUrl] = useState<string | null>(null);
     const [label, setLabel] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
@@ -37,7 +40,7 @@ export default function SkyboxPreview() {
             <div className="min-h-screen bg-[#0A0A0B] flex flex-col items-center justify-center gap-6 p-8">
                 <p className="text-red-400/90 text-sm">{error}</p>
                 <button
-                    onClick={() => navigate('/skyboxes')}
+                    onClick={() => router.push('/skyboxes')}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/15 text-[#94A3B8] hover:text-[#F5F7FA] text-xs uppercase tracking-wider"
                 >
                     <ArrowLeft size={14} /> Back to Skyboxes
@@ -58,7 +61,7 @@ export default function SkyboxPreview() {
         <div className="fixed inset-0 w-full h-full bg-[#0A0A0B]">
             <div className="absolute top-6 left-6 z-20 flex items-center gap-4">
                 <button
-                    onClick={() => navigate('/skyboxes')}
+                    onClick={() => router.push('/skyboxes')}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-full glass border border-white/10 text-[11px] tracking-widest uppercase text-[#94A3B8] hover:text-[#F5F7FA] hover:border-[#C6A664]/30 transition-colors"
                 >
                     <ArrowLeft size={14} /> Back
@@ -71,7 +74,7 @@ export default function SkyboxPreview() {
                         <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-[#0A0A0B]">
                             <p className="text-red-400/90 text-sm text-center max-w-md px-4">Failed to load skybox. The file may be unsupported or the URL may be invalid.</p>
                             <button
-                                onClick={() => navigate('/skyboxes')}
+                                onClick={() => router.push('/skyboxes')}
                                 className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/15 text-[#94A3B8] hover:text-[#F5F7FA] text-xs uppercase tracking-wider"
                             >
                                 <ArrowLeft size={14} /> Back to Skyboxes

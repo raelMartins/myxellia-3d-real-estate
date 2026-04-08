@@ -1,6 +1,8 @@
+'use client';
+
 import { useState } from 'react';
 import { Trash2, X } from 'lucide-react';
-import type { SkyboxRow } from '../lib/skybox';
+import type { SkyboxRow } from '@/lib/skybox';
 
 interface DeleteSkyboxModalProps {
     skybox: SkyboxRow | null;

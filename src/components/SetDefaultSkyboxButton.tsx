@@ -1,6 +1,8 @@
+'use client';
+
 import { useState } from 'react';
 import { Check } from 'lucide-react';
-import { useAuthStore } from '../store/auth.store';
+import { useAuthStore } from '@/store/auth.store';
 
 interface SetDefaultSkyboxButtonProps {
     buildingId: string;
@@ -12,8 +14,8 @@ export default function SetDefaultSkyboxButton({ buildingId, url, onSaved }: Set
     const [saving, setSaving] = useState(false);
 
     const handleClick = async () => {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
         if (!supabaseUrl || !key || !token) return;
         setSaving(true);

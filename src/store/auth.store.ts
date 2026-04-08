@@ -1,7 +1,9 @@
+'use client';
+
 import { create } from 'zustand'
 import type { Session, User } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
-import type { Database } from '../lib/database.types'
+import { supabase } from '@/lib/supabase'
+import type { Database } from '@/lib/database.types'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
@@ -31,7 +33,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 
             if (error) return { error };
 
-            // Fetch profile for the session
             if (data.session?.user) {
                 const { data: profile } = await supabase
                     .from('profiles')
@@ -44,7 +45,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 
             return { error: null };
         } catch (err) {
-            console.error('Sign in error:', err);
             return { error: err instanceof Error ? err : { message: String(err) } };
         }
     },
@@ -63,11 +63,8 @@ export const useAuthStore = create<AuthState>((set) => ({
             });
 
             if (error) return { error };
-
-            // Profile is handled by DB trigger, no need to manually insert here
             return { error: null };
         } catch (err) {
-            console.error('Sign up error:', err);
             return { error: err instanceof Error ? err : { message: String(err) } };
         }
     },
@@ -94,8 +91,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 
                 if (profile) set({ profile })
             }
-        } catch (error) {
-            console.error('Error fetching session:', error)
         } finally {
             set({ loading: false })
         }

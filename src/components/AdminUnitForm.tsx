@@ -1,9 +1,11 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useAuthStore } from '../store/auth.store';
+import { useAuthStore } from '@/store/auth.store';
 import { CurrencyInput } from './CurrencyInput';
 import AdminUnitFormBoxSize from './AdminUnitFormBoxSize';
-import type { Database } from '../lib/database.types';
+import type { Database } from '@/lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
 type UnitUpdate = Database['public']['Tables']['units']['Update'];
@@ -72,8 +74,8 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
             internal_model_url: unit.internal_model_url ?? null,
             size: [Number(sizeX) || 3, Number(sizeY) || 2, Number(sizeZ) || 3],
         };
-        const baseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
         if (!baseUrl || !key || !token) {
             setSaving(false);

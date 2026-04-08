@@ -1,5 +1,7 @@
+'use client';
+
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Upload, ArrowRight, Building2,
@@ -7,20 +9,20 @@ import {
 } from 'lucide-react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Center, Environment, ContactShadows } from '@react-three/drei';
-import { useAuthStore } from '../store/auth.store';
-import { ModelLoader } from '../components/BuildingModel';
-import { generateProjectDetails } from '../lib/ai';
-import { CurrencyInput } from '../components/CurrencyInput';
-import SkyboxSelector from '../components/SkyboxSelector';
-import type { SkyboxRow } from '../lib/skybox';
-import { formatCentsToCurrency } from '../lib/currency';
+import { useAuthStore } from '@/store/auth.store';
+import { ModelLoader } from '@/engine/components/BuildingModel';
+import { generateProjectDetails } from '@/lib/ai';
+import { CurrencyInput } from '@/components/CurrencyInput';
+import SkyboxSelector from '@/components/SkyboxSelector';
+import type { SkyboxRow } from '@/lib/skybox';
+import { formatCentsToCurrency } from '@/lib/currency';
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 const ACCEPTED = ['.glb', '.gltf', '.fbx', '.obj'];
 type Step = 'meta' | 'upload' | 'done';
 
 export default function DeployProject() {
-    const navigate = useNavigate();
+    const router = useRouter();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [step, setStep] = useState<Step>('meta');
@@ -103,10 +105,10 @@ export default function DeployProject() {
         setError(null);
         setUploadProgress(0);
 
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         if (!supabaseUrl || !supabaseKey) {
-            setError('Missing Supabase env (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).');
+            setError('Missing Supabase env (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY).');
             setUploading(false);
             return;
         }
@@ -216,7 +218,7 @@ export default function DeployProject() {
                 style={{ height: '64px', background: 'rgba(10,10,11,0.9)', backdropFilter: 'saturate(180%) blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
             >
                 <button
-                    onClick={() => navigate('/')}
+                    onClick={() => router.push('/')}
                     className="flex items-center gap-2 text-[#94A3B8] hover:text-[#C6A664] text-[10px] tracking-widest uppercase transition-colors group"
                 >
                     <ArrowRight size={13} className="group-hover:-translate-x-1 transition-transform rotate-180" />
@@ -453,8 +455,8 @@ export default function DeployProject() {
                                     <strong className="text-[#C6A664]">{name}</strong> has been uploaded and is now live in the Marketplace.
                                 </p>
                                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                                    <button onClick={() => navigate(`/engine/${newBuildingId ?? 'bldg-1'}`)} className="px-8 py-4 rounded-xl font-semibold text-[12px] tracking-[0.2em] uppercase" style={{ background: 'linear-gradient(135deg, #C6A664, #D4BA82)', color: '#0A0A0B' }}>Open 3D Engine →</button>
-                                    <button onClick={() => navigate('/')} className="px-8 py-4 rounded-xl text-[12px] tracking-widest uppercase" style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#94A3B8' }}>Back to Marketplace</button>
+                                    <button onClick={() => router.push(`/engine/${newBuildingId ?? 'bldg-1'}`)} className="px-8 py-4 rounded-xl font-semibold text-[12px] tracking-[0.2em] uppercase" style={{ background: 'linear-gradient(135deg, #C6A664, #D4BA82)', color: '#0A0A0B' }}>Open 3D Engine →</button>
+                                    <button onClick={() => router.push('/')} className="px-8 py-4 rounded-xl text-[12px] tracking-widest uppercase" style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#94A3B8' }}>Back to Marketplace</button>
                                 </div>
                             </motion.div>
                         )}

@@ -1,5 +1,7 @@
+'use client';
+
 import { useState } from 'react';
-import type { SectionPlan } from '../lib/database.types';
+import type { SectionPlan } from '@/lib/database.types';
 
 export type NewUnitSlot = {
     sectionId: string;

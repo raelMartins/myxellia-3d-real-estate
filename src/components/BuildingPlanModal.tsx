@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -6,9 +8,9 @@ import UnitArchitectStepProgress from './UnitArchitectStepProgress';
 import BuildingPlanEditor from './BuildingPlanEditor';
 import SectionFloorsConfig, { type NewUnitSlot } from './SectionFloorsConfig';
 import MigrationReconcileView from './MigrationReconcileView';
-import type { SectionPlan } from '../lib/database.types';
-import type { UnitRow } from '../lib/database.types';
-import { polygonPairsIntersect } from '../lib/polygonUtils';
+import type { SectionPlan } from '@/lib/database.types';
+import type { UnitRow } from '@/lib/database.types';
+import { polygonPairsIntersect } from '@/lib/polygonUtils';
 
 const STEPS_BASE = ['Bird\'s Eye Plan', 'Floors & Height'] as const;
 

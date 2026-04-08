@@ -2,8 +2,8 @@ import type { Database } from './database.types';
 
 export type SkyboxRow = Database['public']['Tables']['skybox_environments']['Row'];
 
-const supabaseUrl = () => import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = () => import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = () => process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const supabaseKey = () => process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 export async function fetchSkyboxEnvironments(getToken: () => string | undefined): Promise<SkyboxRow[]> {
     const url = supabaseUrl();

@@ -1,11 +1,13 @@
+'use client';
+
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Loader2, Calendar, Box, User } from 'lucide-react';
-import { useAuthStore } from '../store/auth.store';
-import { fetchReservations, updateReservationStatus, type ReservationListItem, type ReservationStatus } from '../lib/reservations';
-import { formatCentsToCurrency } from '../lib/currency';
-import ReservationDetailModal from '../components/ReservationDetailModal';
+import { useAuthStore } from '@/store/auth.store';
+import { fetchReservations, updateReservationStatus, type ReservationListItem, type ReservationStatus } from '@/lib/reservations';
+import { formatCentsToCurrency } from '@/lib/currency';
+import ReservationDetailModal from '@/components/ReservationDetailModal';
 
 const TABS: { id: ReservationStatus | 'all'; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -15,7 +17,7 @@ const TABS: { id: ReservationStatus | 'all'; label: string }[] = [
 ];
 
 export default function AdminReservations() {
-    const navigate = useNavigate();
+    const router = useRouter();
     const { profile } = useAuthStore();
     const isAdmin = profile?.role === 'admin';
 
@@ -36,11 +38,11 @@ export default function AdminReservations() {
 
     useEffect(() => {
         if (!isAdmin) {
-            navigate('/', { replace: true });
+            router.replace('/');
             return;
         }
         load();
-    }, [isAdmin, navigate, load]);
+    }, [isAdmin, router, load]);
 
     const handleRowClick = (item: ReservationListItem) => {
         setDetailItem(item);
@@ -78,7 +80,7 @@ export default function AdminReservations() {
             <nav className="border-b border-white/5 glass-heavy">
                 <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-4">
                     <button
-                        onClick={() => navigate('/')}
+                        onClick={() => router.push('/')}
                         className="flex items-center gap-2 text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase hover:text-[#C6A664] transition-colors"
                     >
                         <ArrowLeft size={14} />

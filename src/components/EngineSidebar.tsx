@@ -1,14 +1,16 @@
+'use client';
+
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Plus, PanelLeft, PanelLeftClose } from 'lucide-react';
 import EngineSidebarSelectedUnit from './EngineSidebarSelectedUnit';
 import AddUnitsModal from './AddUnitsModal';
 import type { UnitIdentityValues } from './UnitIdentityForm';
 import type { GeometryData } from './UnitGeometryStep';
-import { useEngineStore } from '../store/engine.store';
-import { formatCentsToCurrency } from '../lib/currency';
-import type { Database } from '../lib/database.types';
+import { useEngineStore } from '@/engine/store/engine.store';
+import { formatCentsToCurrency } from '@/lib/currency';
+import type { Database } from '@/lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
 
@@ -35,7 +37,7 @@ interface EngineSidebarProps {
     setUnitFormError: (msg: string | null) => void;
     onInteriorUploaded: () => void;
     onViewInterior: () => void;
-    onSaveHotspots: (unitId: string, hotspots: import('../lib/database.types').InteriorHotspot[]) => void;
+    onSaveHotspots: (unitId: string, hotspots: import('@/lib/database.types').InteriorHotspot[]) => void;
     onOpenInteriorModal: () => void;
     onCreateUnitComplete: (identity: UnitIdentityValues, geometry: GeometryData, interiorFile: File | null) => Promise<import('./AddUnitsModal').UnitCreateResult | null>;
     onUnitCreatedWithInterior?: (unitId: string) => void;
@@ -62,8 +64,9 @@ export default function EngineSidebar({
     onUnitCreatedWithInterior,
     onOpenBuildingPlan,
 }: EngineSidebarProps) {
-    const { buildingId } = useParams();
-    const navigate = useNavigate();
+    const params = useParams();
+    const buildingId = (params?.buildingId as string | undefined) ?? undefined;
+    const router = useRouter();
     const {
         building, selectedUnit, hoveredUnit, unitStatuses,
         setSelectedUnit, setHoveredUnit,
@@ -115,7 +118,7 @@ export default function EngineSidebar({
                         <button
                             onClick={() => {
                                 if (singleUnitMode) {
-                                    navigate(-1);
+                                    router.back();
                                 } else {
                                     setSelectedUnit(null);
                                     setUnitFormError(null);
@@ -163,7 +166,7 @@ export default function EngineSidebar({
                         <div className="p-8 pb-6">
                             <div className="flex items-center justify-between gap-2 mb-6">
                             <button
-                                onClick={() => navigate(`/detail/${buildingId}`)}
+                                onClick={() => router.push(`/detail/${buildingId}`)}
                                 className="flex items-center gap-2 text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase hover:text-[#C6A664] transition-colors group"
                             >
                                 <ArrowLeft size={12} className="group-hover:-translate-x-1 transition-transform" />

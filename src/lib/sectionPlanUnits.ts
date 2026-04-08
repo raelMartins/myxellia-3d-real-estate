@@ -1,5 +1,5 @@
-import type { SectionPlan } from '../lib/database.types';
-import type { NewUnitSlot } from '../components/SectionFloorsConfig';
+import type { SectionPlan } from './database.types';
+import type { NewUnitSlot } from '@/components/SectionFloorsConfig';
 
 export type ModelBoundsXZ = { minX: number; maxX: number; minZ: number; maxZ: number };
 

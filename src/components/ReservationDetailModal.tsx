@@ -1,8 +1,10 @@
-import { useNavigate } from 'react-router-dom';
+'use client';
+
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { X, Box, User, Calendar, MapPin, Check, XCircle } from 'lucide-react';
-import { formatCentsToCurrency } from '../lib/currency';
-import type { ReservationListItem, ReservationStatus } from '../lib/reservations';
+import { formatCentsToCurrency } from '@/lib/currency';
+import type { ReservationListItem, ReservationStatus } from '@/lib/reservations';
 
 const STATUS_LABEL: Record<ReservationStatus, string> = {
     soft_lock: 'Pending',
@@ -30,7 +32,7 @@ export default function ReservationDetailModal({
     onReject,
     acceptRejectLoading = false,
 }: ReservationDetailModalProps) {
-    const navigate = useNavigate();
+    const router = useRouter();
     if (!open) return null;
 
     const reservation = item?.reservation;
@@ -43,7 +45,7 @@ export default function ReservationDetailModal({
     const handleViewIn3D = () => {
         if (buildingId && unit?.id) {
             onClose();
-            navigate(`/engine/${buildingId}?unitId=${unit.id}`);
+            router.push(`/engine/${buildingId}?unitId=${unit.id}`);
         }
     };
 

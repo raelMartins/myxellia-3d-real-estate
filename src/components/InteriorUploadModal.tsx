@@ -1,8 +1,10 @@
+'use client';
+
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import InteriorModelUpload from './InteriorModelUpload';
-import type { Database } from '../lib/database.types';
+import type { Database } from '@/lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
 

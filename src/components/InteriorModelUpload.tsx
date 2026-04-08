@@ -1,9 +1,11 @@
+'use client';
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Center, Environment, ContactShadows, OrbitControls } from '@react-three/drei';
 import { Upload, Loader2, X, Box, Eye } from 'lucide-react';
-import { ModelLoader } from './BuildingModel';
-import { useAuthStore } from '../store/auth.store';
+import { ModelLoader } from '@/engine/components/BuildingModel';
+import { useAuthStore } from '@/store/auth.store';
 
 const ACCEPTED = ['.glb', '.gltf', '.fbx', '.obj'];
 
@@ -69,8 +71,8 @@ export default function InteriorModelUpload({ unitId, unitNumber, onUploaded, on
 
     const handleUpload = async () => {
         if (!file) return;
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
         if (!supabaseUrl || !supabaseKey || !token) {
             onError('Missing Supabase config or session. Please sign in.');

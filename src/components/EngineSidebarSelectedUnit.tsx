@@ -1,11 +1,13 @@
+'use client';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Trash2, Layout, Eye, MapPin } from 'lucide-react';
 import AdminUnitForm from './AdminUnitForm';
 import AddHotspotModal from './AddHotspotModal';
-import { formatCentsToCurrency } from '../lib/currency';
-import { useEngineStore } from '../store/engine.store';
-import type { Database } from '../lib/database.types';
-import type { InteriorHotspot } from '../lib/database.types';
+import { formatCentsToCurrency } from '@/lib/currency';
+import { useEngineStore } from '@/engine/store/engine.store';
+import type { Database } from '@/lib/database.types';
+import type { InteriorHotspot } from '@/lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
 

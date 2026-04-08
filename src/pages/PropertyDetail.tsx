@@ -1,11 +1,13 @@
+'use client';
+
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { supabase } from '../lib/supabase';
-import type { Database } from '../lib/database.types';
+import { supabase } from '@/lib/supabase';
+import type { Database } from '@/lib/database.types';
 import { ArrowLeft, Box, MapPin, Layers, BedDouble, Bath, Maximize2, Play, ExternalLink } from 'lucide-react';
-import { computeBuildingDetailStats } from '../lib/buildingDetailStats';
-import PropertyDetailFloorPlan from '../components/PropertyDetailFloorPlan';
+import { computeBuildingDetailStats } from '@/lib/buildingDetailStats';
+import PropertyDetailFloorPlan from '@/components/PropertyDetailFloorPlan';
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 
@@ -16,8 +18,9 @@ type BuildingDetail = BuildingRow & { available_units?: number; floors?: string 
 type UnitForDetail = Pick<Database['public']['Tables']['units']['Row'], 'status' | 'bedrooms' | 'bathrooms' | 'area_sqm' | 'floor' | 'price'>;
 
 export default function PropertyDetail() {
-    const { buildingId } = useParams<{ buildingId: string }>();
-    const navigate = useNavigate();
+    const params = useParams();
+    const buildingId = (params?.buildingId as string | undefined) ?? undefined;
+    const router = useRouter();
     const [bldg, setBldg] = useState<BuildingDetail | null>(null);
     const [units, setUnits] = useState<UnitForDetail[]>([]);
     const [loading, setLoading] = useState(true);
@@ -62,7 +65,7 @@ export default function PropertyDetail() {
         return (
             <div className="min-h-screen bg-[#0A0A0B] flex flex-col items-center justify-center space-y-4">
                 <p className="text-[#94A3B8]">Building not found.</p>
-                <button onClick={() => navigate('/')} className="text-[#C6A664] hover:underline uppercase text-[10px] tracking-widest">Back to Marketplace</button>
+                <button onClick={() => router.push('/')} className="text-[#C6A664] hover:underline uppercase text-[10px] tracking-widest">Back to Marketplace</button>
             </div>
         );
     }
@@ -94,7 +97,7 @@ export default function PropertyDetail() {
 
                 {/* Back Button */}
                 <motion.button
-                    onClick={() => navigate(-1)}
+                    onClick={() => router.back()}
                     initial={{ opacity: 0, x: -12 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.5, ease }}
@@ -214,7 +217,7 @@ export default function PropertyDetail() {
                         )}
 
                         <motion.button
-                            onClick={() => navigate(`/engine/${bldg.id}`)}
+                            onClick={() => router.push(`/engine/${bldg.id}`)}
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                             className="w-full py-5 rounded-xl text-[#0A0A0B] font-semibold text-[13px] tracking-[0.2em] uppercase relative overflow-hidden group"

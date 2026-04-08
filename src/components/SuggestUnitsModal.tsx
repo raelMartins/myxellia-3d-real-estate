@@ -1,6 +1,8 @@
+'use client';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, CheckCircle } from 'lucide-react';
-import type { UnitSuggestion } from '../lib/ai';
+import type { UnitSuggestion } from '@/lib/ai';
 
 interface SuggestUnitsModalProps {
     open: boolean;

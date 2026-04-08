@@ -1,7 +1,9 @@
+'use client';
+
 import { useState, useEffect, useRef } from 'react';
 import { ImagePlus, Loader2 } from 'lucide-react';
-import { fetchSkyboxEnvironments, uploadSkyboxEnvironment, type SkyboxRow } from '../lib/skybox';
-import { useAuthStore } from '../store/auth.store';
+import { fetchSkyboxEnvironments, uploadSkyboxEnvironment, type SkyboxRow } from '@/lib/skybox';
+import { useAuthStore } from '@/store/auth.store';
 
 const HDR_ACCEPT = '.hdr,.hdri';
 

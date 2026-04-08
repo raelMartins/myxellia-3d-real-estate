@@ -1,5 +1,7 @@
+'use client';
+
 import { useState, useEffect } from 'react';
-import { regularPolygonVertices, type Point2 } from '../lib/polygonUtils';
+import { regularPolygonVertices, type Point2 } from '@/lib/polygonUtils';
 import PolygonCanvas from './PolygonCanvas';
 import GeometryConfigForm, { type GeometryFormValues } from './GeometryConfigForm';
 

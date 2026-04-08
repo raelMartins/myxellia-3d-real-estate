@@ -1,14 +1,16 @@
+'use client';
+
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Loader2, Calendar, Box } from 'lucide-react';
-import { useAuthStore } from '../store/auth.store';
-import { fetchReservations, type ReservationListItem } from '../lib/reservations';
-import { formatCentsToCurrency } from '../lib/currency';
-import ReservationDetailModal from '../components/ReservationDetailModal';
+import { useAuthStore } from '@/store/auth.store';
+import { fetchReservations, type ReservationListItem } from '@/lib/reservations';
+import { formatCentsToCurrency } from '@/lib/currency';
+import ReservationDetailModal from '@/components/ReservationDetailModal';
 
 export default function MyReservations() {
-    const navigate = useNavigate();
+    const router = useRouter();
     const { profile, session } = useAuthStore();
     const userId = session?.user?.id ?? null;
 
@@ -40,7 +42,7 @@ export default function MyReservations() {
             <nav className="border-b border-white/5 glass-heavy">
                 <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-4">
                     <button
-                        onClick={() => navigate('/')}
+                        onClick={() => router.push('/')}
                         className="flex items-center gap-2 text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase hover:text-[#C6A664] transition-colors"
                     >
                         <ArrowLeft size={14} />
@@ -63,7 +65,7 @@ export default function MyReservations() {
                     <div className="glass rounded-2xl border border-white/5 p-12 text-center">
                         <p className="text-[#94A3B8] text-sm">You have no allocations yet.</p>
                         <button
-                            onClick={() => navigate('/')}
+                            onClick={() => router.push('/')}
                             className="mt-4 px-4 py-2 rounded-lg text-[#C6A664] text-[10px] tracking-widest uppercase border border-[#C6A664]/40 hover:bg-[#C6A664]/10 transition-colors"
                         >
                             Browse properties

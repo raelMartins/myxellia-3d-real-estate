@@ -1,5 +1,7 @@
+'use client';
+
 import { useRef, useCallback } from 'react';
-import { isSimplePolygon, type Point2 } from '../lib/polygonUtils';
+import { isSimplePolygon, type Point2 } from '@/lib/polygonUtils';
 
 const CANVAS_SIZE = 280;
 const GRID_STEP = 0.25;

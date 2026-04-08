@@ -1,7 +1,9 @@
+'use client';
+
 import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Environment, OrbitControls } from '@react-three/drei';
-import GroundedSkyboxEnv from './GroundedSkyboxEnv';
+import GroundedSkyboxEnv from '@/engine/components/GroundedSkyboxEnv';
 
 function isHdrUrl(url: string): boolean {
     const u = url.toLowerCase().split('?')[0];

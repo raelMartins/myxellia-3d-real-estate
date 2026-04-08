@@ -1,15 +1,17 @@
+'use client';
+
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { ArrowLeft, ImagePlus, Loader2, Trash2 } from 'lucide-react';
-import { fetchSkyboxEnvironments, uploadSkyboxEnvironment, deleteSkyboxEnvironment, type SkyboxRow } from '../lib/skybox';
-import { useAuthStore } from '../store/auth.store';
-import DeleteSkyboxModal from '../components/DeleteSkyboxModal';
+import { fetchSkyboxEnvironments, uploadSkyboxEnvironment, deleteSkyboxEnvironment, type SkyboxRow } from '@/lib/skybox';
+import { useAuthStore } from '@/store/auth.store';
+import DeleteSkyboxModal from '@/components/DeleteSkyboxModal';
 
 const HDR_ACCEPT = '.hdr,.hdri';
 
 export default function Skyboxes() {
-    const navigate = useNavigate();
+    const router = useRouter();
     const [list, setList] = useState<SkyboxRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -52,7 +54,7 @@ export default function Skyboxes() {
         <div className="min-h-screen bg-[#0A0A0B] text-[#F5F7FA]">
             <nav className="sticky top-0 z-40 flex items-center justify-between px-8 py-5 border-b border-white/6 bg-[#0A0A0B]/95 backdrop-blur-md">
                 <button
-                    onClick={() => navigate('/')}
+                    onClick={() => router.push('/')}
                     className="flex items-center gap-2 text-[#94A3B8] hover:text-[#C6A664] text-[10px] tracking-widest uppercase transition-colors"
                 >
                     <ArrowLeft size={14} /> Back to Command Center
@@ -110,7 +112,7 @@ export default function Skyboxes() {
                             >
                                 <button
                                     type="button"
-                                    onClick={() => navigate(`/skyboxes/preview/${s.id}`)}
+                                    onClick={() => router.push(`/skyboxes/preview/${s.id}`)}
                                     className="w-full text-left block"
                                 >
                                     <div className="aspect-[4/3] bg-black/50 flex items-center justify-center">

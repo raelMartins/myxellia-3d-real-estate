@@ -1,5 +1,7 @@
+'use client';
+
 import React, { useState, useEffect, useRef } from 'react';
-import { formatCentsToDisplay, parseToCents } from '../lib/currency';
+import { formatCentsToDisplay, parseToCents } from '@/lib/currency';
 
 interface CurrencyInputProps {
     value: number | null;

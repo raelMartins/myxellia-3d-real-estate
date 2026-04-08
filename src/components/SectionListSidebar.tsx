@@ -1,6 +1,8 @@
+'use client';
+
 import { useState } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import type { SectionPlanSection } from '../lib/database.types';
+import type { SectionPlanSection } from '@/lib/database.types';
 
 interface SectionListSidebarProps {
     sections: SectionPlanSection[];

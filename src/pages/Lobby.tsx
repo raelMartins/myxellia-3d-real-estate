@@ -1,11 +1,13 @@
+'use client';
+
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/auth.store';
-import { supabase } from '../lib/supabase';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/auth.store';
+import { supabase } from '@/lib/supabase';
 import { motion } from 'framer-motion';
 import { LogOut, ArrowRight, Activity, Users, TrendingUp, MapPin, Layers, Plus, ImagePlus, CalendarCheck } from 'lucide-react';
-import type { Database } from '../lib/database.types';
-import { formatCentsToCurrency, formatCentsToShortCurrency } from '../lib/currency';
+import type { Database } from '@/lib/database.types';
+import { formatCentsToCurrency, formatCentsToShortCurrency } from '@/lib/currency';
 
 type BuildingRow = Database['public']['Tables']['buildings']['Row'];
 
@@ -13,7 +15,7 @@ const ease = [0.2, 0.8, 0.2, 1] as const;
 
 /* ── Tilt Card Component ── */
 function BuildingCard({ building, index }: { building: BuildingRow & { badge?: string; available_units?: number; hero_url?: string | null; starting_price?: string | null }; index: number }) {
-    const navigate = useNavigate();
+    const router = useRouter();
     const cardRef = useRef<HTMLDivElement>(null);
     const [tilt, setTilt] = useState({ x: 0, y: 0 });
     const [hovered, setHovered] = useState(false);
@@ -50,7 +52,7 @@ function BuildingCard({ building, index }: { building: BuildingRow & { badge?: s
             onMouseMove={handleMouseMove}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={resetTilt}
-            onClick={() => navigate(`/detail/${building.id}`)}
+            onClick={() => router.push(`/detail/${building.id}`)}
             className="relative h-[440px] rounded-2xl overflow-hidden cursor-pointer group"
         >
             {/* Background Image */}
@@ -120,7 +122,7 @@ function BuildingCard({ building, index }: { building: BuildingRow & { badge?: s
 
 /* ── Main Lobby ── */
 export default function Lobby() {
-    const navigate = useNavigate();
+    const router = useRouter();
     const { profile, signOut } = useAuthStore();
     const isAdmin = profile?.role === 'admin';
 
@@ -203,7 +205,7 @@ export default function Lobby() {
 
                     <div className="flex items-center gap-4">
                         <button
-                            onClick={() => navigate(isAdmin ? '/admin/reservations' : '/reservations')}
+                            onClick={() => router.push(isAdmin ? '/admin/reservations' : '/reservations')}
                             className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] tracking-widest uppercase font-semibold transition-all duration-200 hover:opacity-90 border border-white/15 text-[#94A3B8] hover:text-[#F5F7FA] hover:border-white/25"
                         >
                             <CalendarCheck size={12} />
@@ -212,14 +214,14 @@ export default function Lobby() {
                         {isAdmin && (
                             <>
                                 <button
-                                    onClick={() => navigate('/skyboxes')}
+                                    onClick={() => router.push('/skyboxes')}
                                     className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] tracking-widest uppercase font-semibold transition-all duration-200 hover:opacity-90 border border-white/15 text-[#94A3B8] hover:text-[#F5F7FA] hover:border-white/25"
                                 >
                                     <ImagePlus size={12} />
                                     Skyboxes
                                 </button>
                                 <button
-                                    onClick={() => navigate('/deploy')}
+                                    onClick={() => router.push('/deploy')}
                                     className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] tracking-widest uppercase font-semibold transition-all duration-200 hover:opacity-90"
                                     style={{ background: 'rgba(198,166,100,0.12)', border: '1px solid rgba(198,166,100,0.35)', color: '#C6A664' }}
                                 >

@@ -1,9 +1,11 @@
+'use client';
+
 import { useRef, useLayoutEffect, useCallback, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Center } from '@react-three/drei';
 import { Suspense } from 'react';
-import { ModelLoader } from './BuildingModel';
+import { ModelLoader } from '@/engine/components/BuildingModel';
 import type { PlanViewBounds, PlanViewSize } from './BuildingPlanTopDownView';
 
 const MAX_DIM = 480;

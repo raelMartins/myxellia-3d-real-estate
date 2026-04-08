@@ -1,4 +1,6 @@
-import type { SectionPlan } from '../lib/database.types';
+'use client';
+
+import type { SectionPlan } from '@/lib/database.types';
 
 export default function PropertyDetailFloorPlan({ sectionPlan }: { sectionPlan: SectionPlan | null | undefined }) {
     return (
