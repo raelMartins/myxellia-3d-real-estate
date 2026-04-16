@@ -64,6 +64,7 @@ export default function EngineSidebarSelectedUnit({
     const { hotspotPlacementMode, setHotspotPlacementMode, capturedHotspotPosition, setCapturedHotspotPosition, viewMode } = useEngineStore();
     const footprint = selectedUnitData ? (selectedUnitData as { footprint?: [number, number][] | null }).footprint : null;
     const isFootprintPrism = Array.isArray(footprint) && footprint.length >= 3;
+    const geometryLocked = selectedUnitData?.section_plan_sourced === true;
 
     return (
         <>
@@ -89,7 +90,7 @@ export default function EngineSidebarSelectedUnit({
                                 </div>
                             </div>
                         </div>
-                        {isAdmin && isFootprintPrism && viewMode === 'exterior' && (
+                        {isAdmin && isFootprintPrism && viewMode === 'exterior' && !geometryLocked && (
                             <p className="text-[9px] text-white/45 leading-relaxed tracking-wide mb-4 max-w-[280px]">
                                 3D: Shift+arrows move · L/H/B+Shift+↑↓ resize length / height / breadth (height grows upward).
                             </p>
@@ -163,6 +164,7 @@ export default function EngineSidebarSelectedUnit({
                                             unit={selectedUnitData}
                                             onSaved={onUnitSaved}
                                             onError={setUnitFormError}
+                                            geometryLocked={geometryLocked}
                                         />
                                     </div>
                                     <button

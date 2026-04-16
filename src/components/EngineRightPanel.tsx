@@ -7,7 +7,7 @@ import SetDefaultSkyboxButton from '@/components/SetDefaultSkyboxButton';
 import SetDefaultWorldEnvironmentButton from '@/components/SetDefaultWorldEnvironmentButton';
 import CustomSelect from '@/components/CustomSelect';
 import type { SurroundCatalogAssetRow } from '@/lib/database.types';
-import type { WorldEnvironmentWithSky } from '@/lib/worldEnvironments';
+import type { SurroundLayoutMode, WorldEnvironmentWithSky } from '@/lib/worldEnvironments';
 import type { SkyboxCollectionWithSlots } from '@/lib/skyboxCollections';
 import type { SkyboxSlotRow } from '@/lib/skyboxEnvResolve';
 
@@ -72,12 +72,14 @@ export interface EngineRightPanelProps {
     showBuildingOrientation?: boolean;
     buildingOrientationDegrees?: number;
     onBuildingOrientationDegreesChange?: (deg: number) => void;
-    /** Surround props from global catalog (pick asset → eight large copies on the base ring). */
+    /** Surround props from global catalog: pick asset and spacing (packed / spread / sparse). */
     showSurroundFill?: boolean;
     surroundCatalogAssets?: SurroundCatalogAssetRow[];
     activeSurroundCatalogAssetId?: string | null;
+    surroundLayoutMode?: SurroundLayoutMode | null;
     surroundSaving?: boolean;
     onSurroundCatalogAssetChange?: (assetId: string | null) => void | Promise<void>;
+    onSurroundLayoutModeChange?: (mode: SurroundLayoutMode | null) => void | Promise<void>;
 }
 
 function PanelRightOpenIcon({ size = 22 }: { size?: number }) {
@@ -135,8 +137,10 @@ export default function EngineRightPanel({
     showSurroundFill = false,
     surroundCatalogAssets = [],
     activeSurroundCatalogAssetId = null,
+    surroundLayoutMode = null,
     surroundSaving = false,
     onSurroundCatalogAssetChange,
+    onSurroundLayoutModeChange,
 }: EngineRightPanelProps) {
     const [collapsed, setCollapsed] = useState(() => {
         if (typeof window === 'undefined') return false;
@@ -381,16 +385,16 @@ export default function EngineRightPanel({
                                     </div>
                                 </div>
 
-                                {showSurroundFill && onSurroundCatalogAssetChange && (
+                                {showSurroundFill && onSurroundCatalogAssetChange && onSurroundLayoutModeChange && (
                                     <div className="flex flex-col gap-1.5 border-t border-white/5 pt-4">
                                         <span className="text-[9px] tracking-[0.2em] text-[#94A3B8] uppercase">
                                             Surround fill
                                         </span>
                                         <p className="text-[10px] text-[#94A3B8]/80 leading-relaxed">
-                                            Pick a library prop — eight large copies are placed around the exposed base
-                                            outside the ground mesh. Clear the selection to remove them.
+                                            Choose a library prop and how densely it fills the ring outside the ground
+                                            mesh. Both are required for props to appear; clear the prop to remove them.
                                         </p>
-                                        <div className="glass-heavy w-full min-w-0 px-2 py-2 rounded-xl border border-white/10">
+                                        <div className="glass-heavy w-full min-w-0 px-2 py-2 rounded-xl border border-white/10 flex flex-col gap-2">
                                             <CustomSelect
                                                 variant="compact"
                                                 frame="inline"
@@ -404,6 +408,24 @@ export default function EngineRightPanel({
                                                         value: a.id,
                                                         label: a.label,
                                                     })),
+                                                ]}
+                                            />
+                                            <CustomSelect
+                                                variant="compact"
+                                                frame="inline"
+                                                value={surroundLayoutMode ?? ''}
+                                                onChange={(v) =>
+                                                    void onSurroundLayoutModeChange(
+                                                        v === '' ? null : (v as SurroundLayoutMode)
+                                                    )
+                                                }
+                                                disabled={surroundSaving}
+                                                className="w-full min-w-0"
+                                                options={[
+                                                    { value: '', label: 'Choose spacing…' },
+                                                    { value: 'packed', label: 'Packed (grid)' },
+                                                    { value: 'spread', label: 'Spread' },
+                                                    { value: 'sparse', label: 'Sparse' },
                                                 ]}
                                             />
                                         </div>

@@ -12,6 +12,10 @@ function isFootprintPrism(u: UnitRow | undefined): boolean {
     return Array.isArray(f) && f.length >= 3;
 }
 
+function isSectionPlanSourced(u: UnitRow | undefined): boolean {
+    return u?.section_plan_sourced === true;
+}
+
 export default function EngineViewControls() {
     const viewMode = useEngineStore((s) => s.viewMode);
     const placementPadEditActive = useEngineStore((s) => s.placementPadEditActive);
@@ -21,7 +25,8 @@ export default function EngineViewControls() {
 
     const selectedRow = selectedUnit ? units.find((u) => u.id === selectedUnit) : undefined;
     const prismSelected = isFootprintPrism(selectedRow);
-    const showPrismAdminHints = viewMode === 'exterior' && isAdmin && prismSelected && !!selectedUnit;
+    const showPrismAdminHints =
+        viewMode === 'exterior' && isAdmin && prismSelected && !!selectedUnit && !isSectionPlanSourced(selectedRow);
 
     if (viewMode === 'interior') {
         return (

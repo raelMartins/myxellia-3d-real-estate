@@ -15,7 +15,14 @@ import { extensionFromModelUrl } from '@/lib/model3dFormats';
 import { meshAabbXZInAncestorSpace } from '@/engine/lib/modelBoundsInAncestorSpace';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
-type DisplayUnit = { id: string; position: [number, number, number]; size: [number, number, number]; footprint?: [number, number][] | null; rotation?: number };
+type DisplayUnit = {
+    id: string
+    position: [number, number, number]
+    size: [number, number, number]
+    footprint?: [number, number][] | null
+    rotation?: number
+    section_plan_sourced?: boolean
+};
 
 const FALLBACK_UNITS: UnitMesh[] = [
     { id: 'u-101', position: [-3, 1, 0], size: [2.8, 1.8, 2.8] },
@@ -254,6 +261,7 @@ export default function BuildingModel() {
             size: parseSize(u),
             footprint: parseFootprint(u),
             rotation: parseRotation(u),
+            section_plan_sourced: u.section_plan_sourced === true,
         }))
         : !building?.model_url ? FALLBACK_UNITS : [];
 
@@ -266,7 +274,7 @@ export default function BuildingModel() {
             <UnitPrism
                 key={u.id}
                 unit={{ id: u.id, position: u.position, size: u.size, footprint: u.footprint, rotation: u.rotation ?? 0 }}
-                allowDrag={true}
+                allowDrag={!u.section_plan_sourced}
             />
         ) : (
             <UnitBox key={u.id} unit={u} />

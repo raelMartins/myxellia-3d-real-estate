@@ -117,6 +117,8 @@ export interface Database {
                     footprint: [number, number][] | null
                     rotation: number | null
                     hotspots: InteriorHotspot[] | null
+                    /** Present when column exists; true for units created from the building section plan apply flow. */
+                    section_plan_sourced?: boolean
                 }
                 Insert: {
                     id?: string
@@ -142,6 +144,7 @@ export interface Database {
                     size?: [number, number, number] | null
                     footprint?: [number, number][] | null
                     rotation?: number | null
+                    section_plan_sourced?: boolean
                 }
                 Update: {
                     id?: string
@@ -168,6 +171,7 @@ export interface Database {
                     footprint?: [number, number][] | null
                     rotation?: number | null
                     hotspots?: InteriorHotspot[] | null
+                    section_plan_sourced?: boolean
                 }
             }
             reservations: {

@@ -14,7 +14,7 @@ export default function WorldEnvironmentMesh({
 }: {
     url: string;
     envContext?: string | null;
-    scatter?: { url: string; layoutMode: SurroundLayoutMode; worldId: string; catalogOctet?: boolean } | null;
+    scatter?: { url: string; layoutMode: SurroundLayoutMode; worldId: string } | null;
 }) {
     const modelWrapRef = useRef<THREE.Group>(null);
 
@@ -44,7 +44,6 @@ export default function WorldEnvironmentMesh({
                         modelWrapRef={modelWrapRef}
                         scatterUrl={scatter.url}
                         layoutMode={scatter.layoutMode}
-                        catalogOctet={scatter.catalogOctet ?? false}
                         worldId={scatter.worldId}
                     />
                 </Suspense>

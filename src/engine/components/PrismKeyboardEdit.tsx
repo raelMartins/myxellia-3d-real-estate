@@ -22,6 +22,10 @@ function isPrismUnit(u: UnitRow): boolean {
     return Array.isArray(f) && f.length >= 3;
 }
 
+function isSectionPlanSourced(u: UnitRow): boolean {
+    return u.section_plan_sourced === true;
+}
+
 function isEditableTarget(el: EventTarget | null) {
     if (!(el instanceof HTMLElement)) return false;
     const tag = el.tagName;
@@ -70,7 +74,7 @@ export default function PrismKeyboardEdit() {
             if (!selectedUnit || !unitPositionHandler || !unitSizeHandler) return;
 
             const row = units.find((u) => u.id === selectedUnit);
-            if (!row || !isPrismUnit(row)) return;
+            if (!row || !isPrismUnit(row) || isSectionPlanSourced(row)) return;
 
             const pos = parseUnitPosition(row);
             const size = parseUnitSize(row);

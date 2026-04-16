@@ -11,10 +11,7 @@ import { computeGroundSurroundLayout } from '@/engine/lib/worldSurroundLayout';
 
 const MAX_INSTANCES = 4096;
 
-/** Legacy per-world scatter (layout modes). */
-const SCATTER_VISUAL_SCALE = 9.5;
-/** Catalog surround: eight props, each very large on the exposed base ring. */
-const OCTET_VISUAL_SCALE = 14;
+const SCATTER_VISUAL_SCALE = 2.35;
 
 function hashStringToSeed(s: string): number {
     let h = 2166136261 >>> 0;
@@ -32,6 +29,17 @@ function mulberry32(seed: number) {
         t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
+}
+
+function isInsideGroundFootprint(
+    x: number,
+    z: number,
+    cx: number,
+    cz: number,
+    innerHx: number,
+    innerHz: number
+): boolean {
+    return Math.abs(x - cx) < innerHx && Math.abs(z - cz) < innerHz;
 }
 
 function prepareScatterMaterial(mat: THREE.Material): THREE.Material {
@@ -86,8 +94,8 @@ function pickLargestMeshData(root: THREE.Object3D): {
     return { geometry: geom, material: mat, meshScale: 1 / maxDim };
 }
 
-/** ~2–3 large props along each free segment of the rectangular ring (outside inner footprint). */
-function buildHeroRingSidePositions(
+/** Even grid over the outer parcel, skipping the inner ground footprint. */
+function buildClumpGridPositions(
     rng: () => number,
     cx: number,
     cz: number,
@@ -95,105 +103,79 @@ function buildHeroRingSidePositions(
     innerHz: number,
     outerHx: number,
     outerHz: number,
-    perSide: number,
-    maxN: number
+    maxN: number,
+    densityMul = 1
 ): { x: number; z: number; yaw: number; scaleJitter: number }[] {
+    const spanX = 2 * outerHx;
+    const spanZ = 2 * outerHz;
+    const ringArea = Math.max(0, 4 * outerHx * outerHz - 4 * innerHx * innerHz);
+    const desired = Math.min(maxN, Math.max(320, Math.floor(ringArea * 6.5 * densityMul)));
+    const cell = Math.max(0.12, Math.min(0.48, Math.sqrt((spanX * spanZ) / desired)));
+    const nx = Math.max(2, Math.ceil(spanX / cell));
+    const nz = Math.max(2, Math.ceil(spanZ / cell));
+    const stepX = spanX / nx;
+    const stepZ = spanZ / nz;
     const out: { x: number; z: number; yaw: number; scaleJitter: number }[] = [];
-    const jitter = () => 0.94 + rng() * 0.12;
-    const pushSeg = (x0: number, z0: number, x1: number, z1: number, n: number) => {
-        const nn = Math.max(1, Math.min(maxN, Math.round(n)));
-        for (let k = 0; k < nn && out.length < maxN; k++) {
-            const t = nn <= 1 ? 0.5 : k / (nn - 1);
+    for (let i = 0; i < nx; i++) {
+        for (let j = 0; j < nz; j++) {
+            if (out.length >= maxN) return out;
+            const x = cx - outerHx + (i + 0.5) * stepX;
+            const z = cz - outerHz + (j + 0.5) * stepZ;
+            if (isInsideGroundFootprint(x, z, cx, cz, innerHx, innerHz)) continue;
             out.push({
-                x: x0 + (x1 - x0) * t,
-                z: z0 + (z1 - z0) * t,
+                x,
+                z,
                 yaw: rng() * Math.PI * 2,
-                scaleJitter: jitter(),
+                scaleJitter: 0.88 + rng() * 0.24,
             });
         }
-    };
-
-    const zN = cz + 0.5 * (innerHz + outerHz);
-    const zS = cz - 0.5 * (innerHz + outerHz);
-    const xE = cx + 0.5 * (innerHx + outerHx);
-    const xW = cx - 0.5 * (innerHx + outerHx);
-
-    const splitCounts = (lenA: number, lenB: number): [number, number] => {
-        if (lenA < 1e-6 && lenB < 1e-6) return [0, 0];
-        if (lenA < 1e-6) return [0, perSide];
-        if (lenB < 1e-6) return [perSide, 0];
-        const t = lenA + lenB;
-        let nA = Math.round((perSide * lenA) / t);
-        nA = Math.max(1, Math.min(perSide - 1, nA));
-        return [nA, perSide - nA];
-    };
-
-    // North (+z): x along outer span, skip inner x gap
-    {
-        const xa = cx - outerHx;
-        const xb = cx + outerHx;
-        const xi0 = cx - innerHx;
-        const xi1 = cx + innerHx;
-        if (xi1 <= xa || xi0 >= xb) {
-            pushSeg(xa, zN, xb, zN, perSide);
-        } else {
-            const lenL = Math.max(0, xi0 - xa);
-            const lenR = Math.max(0, xb - xi1);
-            const [nL, nR] = splitCounts(lenL, lenR);
-            if (lenL > 1e-4) pushSeg(xa, zN, xi0, zN, nL);
-            if (lenR > 1e-4) pushSeg(xi1, zN, xb, zN, nR);
-        }
     }
-    // South (-z)
-    {
-        const xa = cx - outerHx;
-        const xb = cx + outerHx;
-        const xi0 = cx - innerHx;
-        const xi1 = cx + innerHx;
-        if (xi1 <= xa || xi0 >= xb) {
-            pushSeg(xa, zS, xb, zS, perSide);
-        } else {
-            const lenL = Math.max(0, xi0 - xa);
-            const lenR = Math.max(0, xb - xi1);
-            const [nL, nR] = splitCounts(lenL, lenR);
-            if (lenL > 1e-4) pushSeg(xa, zS, xi0, zS, nL);
-            if (lenR > 1e-4) pushSeg(xi1, zS, xb, zS, nR);
-        }
-    }
-    // East (+x): z along outer span, skip inner z gap
-    {
-        const za = cz - outerHz;
-        const zb = cz + outerHz;
-        const zi0 = cz - innerHz;
-        const zi1 = cz + innerHz;
-        if (zi1 <= za || zi0 >= zb) {
-            pushSeg(xE, za, xE, zb, perSide);
-        } else {
-            const lenLo = Math.max(0, zi0 - za);
-            const lenHi = Math.max(0, zb - zi1);
-            const [nLo, nHi] = splitCounts(lenLo, lenHi);
-            if (lenLo > 1e-4) pushSeg(xE, za, xE, zi0, nLo);
-            if (lenHi > 1e-4) pushSeg(xE, zi1, xE, zb, nHi);
-        }
-    }
-    // West (-x)
-    {
-        const za = cz - outerHz;
-        const zb = cz + outerHz;
-        const zi0 = cz - innerHz;
-        const zi1 = cz + innerHz;
-        if (zi1 <= za || zi0 >= zb) {
-            pushSeg(xW, za, xW, zb, perSide);
-        } else {
-            const lenLo = Math.max(0, zi0 - za);
-            const lenHi = Math.max(0, zb - zi1);
-            const [nLo, nHi] = splitCounts(lenLo, lenHi);
-            if (lenLo > 1e-4) pushSeg(xW, za, xW, zi0, nLo);
-            if (lenHi > 1e-4) pushSeg(xW, zi1, xW, zb, nHi);
-        }
-    }
+    return out;
+}
 
-    return out.slice(0, maxN);
+function buildTreeScatterPositions(
+    rng: () => number,
+    cx: number,
+    cz: number,
+    innerHx: number,
+    innerHz: number,
+    outerHx: number,
+    outerHz: number,
+    maxN: number,
+    opts: { areaFactor: number; minDScale: number; minCount: number }
+): { x: number; z: number; yaw: number; scaleJitter: number }[] {
+    const ringArea = Math.max(0, 4 * outerHx * outerHz - 4 * innerHx * innerHz);
+    const stripW = Math.min(2 * (outerHx - innerHx), 2 * (outerHz - innerHz));
+    const targetCount = Math.min(maxN, Math.max(opts.minCount, Math.floor(ringArea * opts.areaFactor)));
+    const minD = Math.max(0.75, stripW * 0.14, Math.min(innerHx, innerHz) * 0.16) * opts.minDScale;
+    const placed: [number, number][] = [];
+    const out: { x: number; z: number; yaw: number; scaleJitter: number }[] = [];
+    const maxAttempts = Math.min(25000, targetCount * 200);
+    let attempts = 0;
+    while (out.length < targetCount && attempts < maxAttempts) {
+        attempts++;
+        const x = cx + (rng() * 2 - 1) * outerHx;
+        const z = cz + (rng() * 2 - 1) * outerHz;
+        if (isInsideGroundFootprint(x, z, cx, cz, innerHx, innerHz)) continue;
+        let ok = true;
+        for (let k = 0; k < placed.length; k++) {
+            const dx = x - placed[k][0];
+            const dz = z - placed[k][1];
+            if (dx * dx + dz * dz < minD * minD) {
+                ok = false;
+                break;
+            }
+        }
+        if (!ok) continue;
+        placed.push([x, z]);
+        out.push({
+            x,
+            z,
+            yaw: rng() * Math.PI * 2,
+            scaleJitter: 0.85 + rng() * 0.35,
+        });
+    }
+    return out;
 }
 
 function layoutRingPositions(
@@ -207,18 +189,28 @@ function layoutRingPositions(
     maxN: number,
     layoutMode: SurroundLayoutMode
 ): { x: number; z: number; yaw: number; scaleJitter: number }[] {
-    const perSide = layoutMode === 'sparse' ? 2 : 3;
-    return buildHeroRingSidePositions(rng, cx, cz, innerHx, innerHz, outerHx, outerHz, perSide, maxN);
+    if (layoutMode === 'packed') {
+        return buildClumpGridPositions(rng, cx, cz, innerHx, innerHz, outerHx, outerHz, maxN, 1.15);
+    }
+    if (layoutMode === 'spread') {
+        return buildTreeScatterPositions(rng, cx, cz, innerHx, innerHz, outerHx, outerHz, maxN, {
+            areaFactor: 0.14,
+            minDScale: 1,
+            minCount: 36,
+        });
+    }
+    return buildTreeScatterPositions(rng, cx, cz, innerHx, innerHz, outerHx, outerHz, maxN, {
+        areaFactor: 0.055,
+        minDScale: 1.55,
+        minCount: 18,
+    });
 }
 
 type ScatterCoreProps = {
     modelWrapRef: React.RefObject<THREE.Group | null>;
     scatterUrl: string;
     layoutMode: SurroundLayoutMode;
-    /** Global catalog: exactly eight instances around the base ring (layout dropdown unused). */
-    catalogOctet: boolean;
     worldId: string;
-    /** Matches [`BuildingModel`](BuildingModel.tsx) primitive scales for FBX/OBJ. */
     formatSourceScale: number;
     root: THREE.Object3D;
 };
@@ -227,7 +219,6 @@ function ScatterInstancedCore({
     modelWrapRef,
     scatterUrl,
     layoutMode,
-    catalogOctet,
     worldId,
     formatSourceScale,
     root,
@@ -241,7 +232,7 @@ function ScatterInstancedCore({
     useEffect(() => {
         geomKey.current = '';
         lastCount.current = 0;
-    }, [scatterUrl, layoutMode, catalogOctet, worldId]);
+    }, [scatterUrl, layoutMode, worldId]);
 
     useLayoutEffect(() => {
         const mesh = instancedRef.current;
@@ -270,46 +261,39 @@ function ScatterInstancedCore({
         if (!layout) return;
         const { cx, cz, innerHx, innerHz, outerHx, outerHz, scatterSurfaceY } = layout;
 
-        const key = `${outerHx.toFixed(3)}:${outerHz.toFixed(3)}:${innerHx.toFixed(3)}:${innerHz.toFixed(3)}:${layoutMode}|o:${catalogOctet ? 1 : 0}`;
+        const key = `${outerHx.toFixed(3)}:${outerHz.toFixed(3)}:${innerHx.toFixed(3)}:${innerHz.toFixed(3)}:${layoutMode}`;
         if (key === geomKey.current && lastCount.current > 0) return;
 
-        const rng = mulberry32(
-            hashStringToSeed(`${worldId}|${scatterUrl}|${layoutMode}|${catalogOctet ? 'oct' : 'leg'}|${key}`)
+        const rng = mulberry32(hashStringToSeed(`${worldId}|${scatterUrl}|${layoutMode}|${key}`));
+        const positions = layoutRingPositions(
+            rng,
+            cx,
+            cz,
+            innerHx,
+            innerHz,
+            outerHx,
+            outerHz,
+            MAX_INSTANCES,
+            layoutMode
         );
-        const positions = catalogOctet
-            ? buildHeroRingSidePositions(rng, cx, cz, innerHx, innerHz, outerHx, outerHz, 2, 8).slice(0, 8)
-            : layoutRingPositions(rng, cx, cz, innerHx, innerHz, outerHx, outerHz, MAX_INSTANCES, layoutMode);
         geomKey.current = key;
         const n = Math.min(positions.length, MAX_INSTANCES);
         mesh.count = n;
         lastCount.current = n;
 
         const groundSpan = Math.max(innerHx * 2, innerHz * 2);
-        const stripW = Math.min(outerHx - innerHx, outerHz - innerHz) * 2;
-        const ringSpan = Math.max(outerHx * 2, outerHz * 2);
-
-        let targetWorldSize: number;
-        let minFootprintWorld: number;
-        let visualScale: number;
-        if (catalogOctet) {
-            targetWorldSize = Math.min(72, Math.max(22, ringSpan * 0.5, stripW * 3.2, groundSpan * 0.45));
-            minFootprintWorld = Math.max(16, ringSpan * 0.28, stripW * 1.85, groundSpan * 0.26);
-            visualScale = OCTET_VISUAL_SCALE;
-        } else {
-            targetWorldSize =
-                layoutMode === 'packed'
-                    ? Math.min(48, Math.max(14, groundSpan * 0.55, stripW * 2.2))
-                    : layoutMode === 'spread'
-                      ? Math.min(44, Math.max(12, groundSpan * 0.48, stripW * 2.0))
-                      : Math.min(40, Math.max(11, groundSpan * 0.42, stripW * 1.85));
-            minFootprintWorld =
-                layoutMode === 'packed'
-                    ? Math.max(8, groundSpan * 0.28, stripW * 1.1)
-                    : layoutMode === 'spread'
-                      ? Math.max(7, groundSpan * 0.24, stripW * 1.0)
-                      : Math.max(6.5, groundSpan * 0.22, stripW * 0.95);
-            visualScale = SCATTER_VISUAL_SCALE;
-        }
+        const targetWorldSize =
+            layoutMode === 'packed'
+                ? Math.min(11, Math.max(3.6, groundSpan * 0.13))
+                : layoutMode === 'spread'
+                  ? Math.min(16, Math.max(6, groundSpan * 0.28))
+                  : Math.min(18, Math.max(7, groundSpan * 0.32));
+        const minFootprintWorld =
+            layoutMode === 'packed'
+                ? Math.max(0.65, groundSpan * 0.07)
+                : layoutMode === 'spread'
+                  ? Math.max(1.4, groundSpan * 0.16)
+                  : Math.max(1.55, groundSpan * 0.18);
 
         const geom = meshData.geometry;
         if (!geom.boundingBox) geom.computeBoundingBox();
@@ -319,10 +303,9 @@ function ScatterInstancedCore({
             const p = positions[i];
             const rawS = meshData.meshScale * targetWorldSize * formatSourceScale * p.scaleJitter;
             const minS = minFootprintWorld * meshData.meshScale * formatSourceScale;
-            const s = Math.max(rawS, minS) * visualScale;
+            const s = Math.max(rawS, minS) * SCATTER_VISUAL_SCALE;
             dummy.rotation.set(0, p.yaw, 0);
             dummy.scale.setScalar(s);
-            /** Yaw about Y preserves local Y → lowest vertex world Y = pos.y + s * geomMinY. */
             dummy.position.set(p.x, scatterSurfaceY - s * geomMinY, p.z);
             dummy.updateMatrix();
             mesh.setMatrixAt(i, dummy.matrix);
@@ -346,7 +329,6 @@ function ScatterFromGLTF({
     modelWrapRef,
     scatterUrl,
     layoutMode,
-    catalogOctet,
     worldId,
 }: Omit<ScatterCoreProps, 'formatSourceScale' | 'root'>) {
     const { scene } = useGLTF(scatterUrl);
@@ -355,7 +337,6 @@ function ScatterFromGLTF({
             modelWrapRef={modelWrapRef}
             scatterUrl={scatterUrl}
             layoutMode={layoutMode}
-            catalogOctet={catalogOctet}
             worldId={worldId}
             formatSourceScale={1}
             root={scene}
@@ -367,7 +348,6 @@ function ScatterFromFBX({
     modelWrapRef,
     scatterUrl,
     layoutMode,
-    catalogOctet,
     worldId,
 }: Omit<ScatterCoreProps, 'formatSourceScale' | 'root'>) {
     const fbx = useFBX(scatterUrl);
@@ -376,7 +356,6 @@ function ScatterFromFBX({
             modelWrapRef={modelWrapRef}
             scatterUrl={scatterUrl}
             layoutMode={layoutMode}
-            catalogOctet={catalogOctet}
             worldId={worldId}
             formatSourceScale={0.008}
             root={fbx}
@@ -388,7 +367,6 @@ function ScatterFromOBJ({
     modelWrapRef,
     scatterUrl,
     layoutMode,
-    catalogOctet,
     worldId,
 }: Omit<ScatterCoreProps, 'formatSourceScale' | 'root'>) {
     const obj = useLoader(OBJLoader, scatterUrl);
@@ -397,7 +375,6 @@ function ScatterFromOBJ({
             modelWrapRef={modelWrapRef}
             scatterUrl={scatterUrl}
             layoutMode={layoutMode}
-            catalogOctet={catalogOctet}
             worldId={worldId}
             formatSourceScale={0.08}
             root={obj}
@@ -409,17 +386,15 @@ export default function WorldScatterSurround({
     modelWrapRef,
     scatterUrl,
     layoutMode,
-    catalogOctet = false,
     worldId,
 }: {
     modelWrapRef: React.RefObject<THREE.Group | null>;
     scatterUrl: string;
     layoutMode: SurroundLayoutMode;
-    catalogOctet?: boolean;
     worldId: string;
 }) {
     const ext = extensionFromModelUrl(scatterUrl).toLowerCase().replace(/^\./, '');
-    const common = { modelWrapRef, scatterUrl, layoutMode, catalogOctet, worldId };
+    const common = { modelWrapRef, scatterUrl, layoutMode, worldId };
     if (ext === 'fbx') return <ScatterFromFBX {...common} />;
     if (ext === 'obj') return <ScatterFromOBJ {...common} />;
     return <ScatterFromGLTF {...common} />;

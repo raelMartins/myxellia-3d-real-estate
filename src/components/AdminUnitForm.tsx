@@ -18,9 +18,11 @@ interface AdminUnitFormProps {
     unit: UnitRow;
     onSaved: () => void;
     onError: (message: string) => void;
+    /** When true, 3D box dimensions are controlled only via the building plan flow — no size fields or PATCH size. */
+    geometryLocked?: boolean;
 }
 
-export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormProps) {
+export default function AdminUnitForm({ unit, onSaved, onError, geometryLocked = false }: AdminUnitFormProps) {
     const [saving, setSaving] = useState(false);
     const [unitNumber, setUnitNumber] = useState(unit.unit_number);
     const [displayName, setDisplayName] = useState(unit.display_name ?? '');
@@ -74,7 +76,9 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
             amenities: amenities.trim() || null,
             perks: perks.trim() || null,
             internal_model_url: unit.internal_model_url ?? null,
-            size: [Number(sizeX) || 3, Number(sizeY) || 2, Number(sizeZ) || 3],
+            ...(!geometryLocked && {
+                size: [Number(sizeX) || 3, Number(sizeY) || 2, Number(sizeZ) || 3],
+            }),
         };
         const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -210,7 +214,9 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
                     placeholder="e.g. 2 parking spots, storage"
                 />
             </div>
-            <AdminUnitFormBoxSize value={[sizeX, sizeY, sizeZ]} onChange={([x, y, z]) => { setSizeX(x); setSizeY(y); setSizeZ(z); }} />
+            {!geometryLocked && (
+                <AdminUnitFormBoxSize value={[sizeX, sizeY, sizeZ]} onChange={([x, y, z]) => { setSizeX(x); setSizeY(y); setSizeZ(z); }} />
+            )}
             <button
                 type="submit"
                 disabled={saving}

@@ -31,6 +31,8 @@ import {
     fetchWorldEnvironmentById,
     patchWorldEnvironmentSkyCollection,
     patchWorldEnvironmentSurroundSelection,
+    isSurroundLayoutMode,
+    type SurroundLayoutMode,
     type WorldEnvironmentWithSky,
 } from '@/lib/worldEnvironments';
 import { fetchSurroundCatalogAssets } from '@/lib/surroundCatalog';
@@ -281,14 +283,46 @@ export default function Engine() {
                     if (updated) mergeRefreshedWorld(updated);
                     else setNotification('Could not clear surround fill.');
                 } else {
+                    const layoutRaw = ew.surround_layout_mode;
+                    const layoutMode = isSurroundLayoutMode(layoutRaw) ? layoutRaw : null;
                     const updated = await patchWorldEnvironmentSurroundSelection(
                         wid,
-                        { catalogAssetId: assetId, layoutMode: null },
+                        { catalogAssetId: assetId, layoutMode },
                         getToken
                     );
                     if (updated) mergeRefreshedWorld(updated);
                     else setNotification('Could not update surround prop.');
                 }
+            } finally {
+                setSurroundSaving(false);
+            }
+        },
+        [mergeRefreshedWorld, setNotification]
+    );
+
+    const handleSurroundLayoutModeChange = useCallback(
+        async (mode: SurroundLayoutMode | null) => {
+            const ew = pickEffectiveWorldEnvironment(
+                useEngineStore.getState().selectedWorldEnvironmentId,
+                useEngineStore.getState().buildingWorldEnvironment,
+                useEngineStore.getState().worldEnvironments
+            );
+            const wid = ew?.id;
+            if (!wid) return;
+            const getToken = () => useAuthStore.getState().session?.access_token ?? undefined;
+            if (!getToken()) {
+                setNotification('Sign in to update surround spacing.');
+                return;
+            }
+            setSurroundSaving(true);
+            try {
+                const updated = await patchWorldEnvironmentSurroundSelection(
+                    wid,
+                    { catalogAssetId: ew.active_surround_catalog_asset_id ?? null, layoutMode: mode },
+                    getToken
+                );
+                if (updated) mergeRefreshedWorld(updated);
+                else setNotification('Could not update surround spacing.');
             } finally {
                 setSurroundSaving(false);
             }
@@ -501,8 +535,9 @@ export default function Engine() {
     };
 
     const handleUpdateUnitPosition = async (unitId: string, position: [number, number, number]) => {
-        const { buildingId: bid } = useEngineStore.getState();
+        const { buildingId: bid, units: storeUnits } = useEngineStore.getState();
         if (!bid) return;
+        if (storeUnits.some((u: UnitRow) => u.id === unitId && u.section_plan_sourced)) return;
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
@@ -523,8 +558,9 @@ export default function Engine() {
     };
 
     const handleUpdateUnitSize = async (unitId: string, size: [number, number, number]) => {
-        const { buildingId: bid } = useEngineStore.getState();
+        const { buildingId: bid, units: storeUnits } = useEngineStore.getState();
         if (!bid) return;
+        if (storeUnits.some((u: UnitRow) => u.id === unitId && u.section_plan_sourced)) return;
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
@@ -545,8 +581,9 @@ export default function Engine() {
     };
 
     const handleUpdateUnitRotation = async (unitId: string, rotation: number) => {
-        const { buildingId: bid } = useEngineStore.getState();
+        const { buildingId: bid, units: storeUnits } = useEngineStore.getState();
         if (!bid) return;
+        if (storeUnits.some((u: UnitRow) => u.id === unitId && u.section_plan_sourced)) return;
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const token = useAuthStore.getState().session?.access_token;
@@ -623,6 +660,7 @@ export default function Engine() {
             mesh_id: `u-${trimmed}`,
             position,
             size,
+            section_plan_sourced: false,
             ...(geometry.footprint?.length >= 3 && { footprint: geometry.footprint }),
         };
         const createRes = await fetch(`${url}/rest/v1/units`, {
@@ -728,6 +766,7 @@ export default function Engine() {
                 display_name: oldUnit?.display_name ?? null,
                 internal_model_url: oldUnit?.internal_model_url ?? null,
                 mesh_id: `u-${unitNumber}`,
+                section_plan_sourced: true,
             };
             const res = await fetch(`${url}/rest/v1/units`, {
                 method: 'POST',
@@ -916,8 +955,14 @@ export default function Engine() {
                     showSurroundFill={showSurroundFill}
                     surroundCatalogAssets={surroundCatalogAssets}
                     activeSurroundCatalogAssetId={effectiveWorldForUi?.active_surround_catalog_asset_id ?? null}
+                    surroundLayoutMode={
+                        isSurroundLayoutMode(effectiveWorldForUi?.surround_layout_mode)
+                            ? effectiveWorldForUi.surround_layout_mode
+                            : null
+                    }
                     surroundSaving={surroundSaving}
                     onSurroundCatalogAssetChange={handleSurroundCatalogAssetChange}
+                    onSurroundLayoutModeChange={handleSurroundLayoutModeChange}
                 />
             </div>
 

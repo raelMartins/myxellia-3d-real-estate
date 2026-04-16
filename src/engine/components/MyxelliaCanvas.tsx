@@ -20,6 +20,7 @@ import { resolveExteriorHdriUrl } from '@/lib/skyboxEnvResolve';
 import { pickEffectiveWorldEnvironment } from '@/lib/pickEffectiveWorldEnvironment';
 import {
     fetchWorldEnvironmentById,
+    isSurroundLayoutMode,
     type SurroundLayoutMode,
     type WorldEnvironmentWithSky,
 } from '@/lib/worldEnvironments';
@@ -132,6 +133,7 @@ function useScatterWorldRow(effectiveWorld: WorldEnvironmentWithSky | null, view
         effectiveWorld?.id,
         effectiveWorld?.active_surround_scatter_asset_id,
         effectiveWorld?.active_surround_catalog_asset_id,
+        effectiveWorld?.surround_layout_mode,
         viewMode,
         (effectiveWorld?.world_scatter_assets ?? []).length,
     ]);
@@ -167,21 +169,18 @@ export default function MyxelliaCanvas() {
             scatterWorldFresh?.id === effectiveWorld?.id ? scatterWorldFresh : effectiveWorld;
         if (!ew?.id) return null;
         const catId = ew.active_surround_catalog_asset_id;
+        const layoutRaw = ew.surround_layout_mode;
+        const layout = isSurroundLayoutMode(layoutRaw) ? layoutRaw : null;
         const cat = ew.surround_catalog;
-        if (catId && cat?.file_url && cat.id === catId) {
-            return {
-                url: cat.file_url,
-                layoutMode: 'packed' as SurroundLayoutMode,
-                worldId: ew.id,
-                catalogOctet: true,
-            };
+        if (catId && layout && cat?.file_url && cat.id === catId) {
+            return { url: cat.file_url, layoutMode: layout, worldId: ew.id };
         }
         const aid = ew.active_surround_scatter_asset_id;
         if (!aid) return null;
         const row = (ew.world_scatter_assets ?? []).find((a) => a.id === aid);
         if (!row?.file_url) return null;
         const layoutMode: SurroundLayoutMode = row.kind === 'tree' ? 'spread' : 'packed';
-        return { url: row.file_url, layoutMode, worldId: ew.id, catalogOctet: false };
+        return { url: row.file_url, layoutMode, worldId: ew.id };
     }, [effectiveWorld, scatterWorldFresh]);
     const worldOrbitRootRef = useRef<THREE.Group | null>(null);
     const L = LIGHTING[lightingMode as LightingKey];

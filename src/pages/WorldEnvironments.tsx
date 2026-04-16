@@ -360,8 +360,8 @@ export default function WorldEnvironments() {
                     <h2 className="text-[11px] tracking-[0.25em] uppercase text-[#C6A664] font-bold">Surround asset library</h2>
                     <p className="text-[12px] text-[#94A3B8] leading-relaxed">
                         Shared props (grass, rocks, trees, etc.) — {SCATTER_MODEL_INPUT_ACCEPT}. Preview confirms the file
-                        loads before you add it. In the engine scene panel, pick a prop for each world (eight large copies
-                        ring the exposed base).
+                        loads before you add it. In the engine scene panel, pick a prop and spacing (packed, spread, or
+                        sparse) for each world so copies scatter around the exposed base.
                     </p>
                     <input
                         ref={catInputRef}
@@ -538,7 +538,7 @@ export default function WorldEnvironments() {
 
                                     <p className="text-[10px] text-[#94A3B8]/80 mt-4 pt-4 border-t border-white/10 leading-relaxed">
                                         Surround props come from the shared library above. Preview this world in the engine and
-                                        use the right Scene panel to choose a prop (eight large copies ring the base).
+                                        use the right Scene panel to choose a prop and spacing for the surround ring.
                                     </p>
                                 </div>
                                 <div className="px-6 pb-6 pt-0 flex flex-wrap gap-2">
