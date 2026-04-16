@@ -2,14 +2,20 @@
 
 import { useState } from 'react';
 import { Trash2, X } from 'lucide-react';
-import type { SkyboxRow } from '@/lib/skybox';
+
+export interface DeleteSkyboxLabelled {
+    id: string;
+    label: string;
+}
 
 interface DeleteSkyboxModalProps {
-    skybox: SkyboxRow | null;
+    skybox: DeleteSkyboxLabelled | null;
     open: boolean;
     onClose: () => void;
     onDeleted: () => void;
     deleteSkybox: (id: string) => Promise<boolean>;
+    title?: string;
+    noun?: string;
 }
 
 export default function DeleteSkyboxModal({
@@ -18,6 +24,8 @@ export default function DeleteSkyboxModal({
     onClose,
     onDeleted,
     deleteSkybox,
+    title = 'Delete sky collection',
+    noun = 'collection label',
 }: DeleteSkyboxModalProps) {
     const [confirmLabel, setConfirmLabel] = useState('');
     const [deleting, setDeleting] = useState(false);
@@ -59,7 +67,7 @@ export default function DeleteSkyboxModal({
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-serif-display text-lg text-[#F5F7FA]">Delete skybox</h3>
+                    <h3 className="font-serif-display text-lg text-[#F5F7FA]">{title}</h3>
                     <button type="button" onClick={handleClose} disabled={deleting} className="p-2 rounded-lg hover:bg-white/10 text-[#94A3B8] disabled:opacity-50">
                         <X size={18} />
                     </button>
@@ -71,7 +79,7 @@ export default function DeleteSkyboxModal({
                     type="text"
                     value={confirmLabel}
                     onChange={(e) => setConfirmLabel(e.target.value)}
-                    placeholder="Skybox label"
+                    placeholder={noun}
                     className="w-full glass rounded-xl px-4 py-3 text-[14px] text-[#F5F7FA] placeholder:text-[#94A3B8]/50 focus:outline-none border border-white/10 mb-4"
                 />
                 {error && <p className="text-red-400 text-[12px] mb-3">{error}</p>}

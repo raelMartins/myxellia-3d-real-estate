@@ -61,7 +61,9 @@ export default function EngineSidebarSelectedUnit({
     setDeleteSubmitting,
     isFullView = false,
 }: EngineSidebarSelectedUnitProps) {
-    const { hotspotPlacementMode, setHotspotPlacementMode, capturedHotspotPosition, setCapturedHotspotPosition } = useEngineStore();
+    const { hotspotPlacementMode, setHotspotPlacementMode, capturedHotspotPosition, setCapturedHotspotPosition, viewMode } = useEngineStore();
+    const footprint = selectedUnitData ? (selectedUnitData as { footprint?: [number, number][] | null }).footprint : null;
+    const isFootprintPrism = Array.isArray(footprint) && footprint.length >= 3;
 
     return (
         <>
@@ -87,6 +89,11 @@ export default function EngineSidebarSelectedUnit({
                                 </div>
                             </div>
                         </div>
+                        {isAdmin && isFootprintPrism && viewMode === 'exterior' && (
+                            <p className="text-[9px] text-white/45 leading-relaxed tracking-wide mb-4 max-w-[280px]">
+                                3D: Shift+arrows move · L/H/B+Shift+↑↓ resize length / height / breadth (height grows upward).
+                            </p>
+                        )}
                         <div className="space-y-3">
                             {isAdmin && selectedUnitData ? (
                                 <>

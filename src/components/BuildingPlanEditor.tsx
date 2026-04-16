@@ -6,6 +6,7 @@ import type { SectionPlan, SectionPlanSection } from '@/lib/database.types';
 import BirdEyeCanvas from './BirdEyeCanvas';
 import BuildingPlanTopDownView, { type PlanViewSize } from './BuildingPlanTopDownView';
 import SectionListSidebar from './SectionListSidebar';
+import NumberInput from '@/components/NumberInput';
 
 const DEFAULT_BASE_WIDTH = 20;
 const DEFAULT_BASE_DEPTH = 20;
@@ -121,32 +122,26 @@ export default function BuildingPlanEditor({ initialPlan, onPlanChange, modelUrl
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Base width</label>
-                        <input
-                            type="text"
-                            inputMode="decimal"
+                        <NumberInput
+                            allowDecimal
                             value={baseWidth}
-                            onChange={(e) => {
-                                const v = Number(e.target.value);
-                                if (!Number.isNaN(v) && v > 0) {
-                                    setBaseWidth(v);
-                                    onPlanChange({ baseWidth: v, baseDepth, sections });
-                                }
+                            onChange={(n) => {
+                                const next = n > 0 ? n : baseWidth;
+                                setBaseWidth(next);
+                                onPlanChange({ baseWidth: next, baseDepth, sections });
                             }}
                             className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA]"
                         />
                     </div>
                     <div>
                         <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Base depth</label>
-                        <input
-                            type="text"
-                            inputMode="decimal"
+                        <NumberInput
+                            allowDecimal
                             value={baseDepth}
-                            onChange={(e) => {
-                                const v = Number(e.target.value);
-                                if (!Number.isNaN(v) && v > 0) {
-                                    setBaseDepth(v);
-                                    onPlanChange({ baseWidth, baseDepth: v, sections });
-                                }
+                            onChange={(n) => {
+                                const next = n > 0 ? n : baseDepth;
+                                setBaseDepth(next);
+                                onPlanChange({ baseWidth, baseDepth: next, sections });
                             }}
                             className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA]"
                         />

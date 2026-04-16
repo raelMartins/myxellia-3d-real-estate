@@ -1,8 +1,10 @@
 'use client';
 
 import type { UnitRow } from '@/lib/database.types';
-import type { NewUnitSlot } from './SectionFloorsConfig';
+import type { NewUnitSlot } from '@/lib/sectionPlanSlots';
+import { slotYExtent } from '@/lib/sectionPlanUnits';
 import { formatCentsToCurrency } from '@/lib/currency';
+import CustomSelect from '@/components/CustomSelect';
 
 interface MigrationReconcileViewProps {
     oldUnits: UnitRow[];
@@ -33,25 +35,32 @@ export default function MigrationReconcileView({ oldUnits, newSlots, mapping, on
             <div>
                 <div className="text-[9px] tracking-[0.2em] text-[#C6A664] uppercase mb-3">New units (copy data from)</div>
                 <ul className="space-y-2 max-h-[320px] overflow-y-auto custom-scrollbar">
-                    {newSlots.map((slot, i) => (
-                        <li key={i} className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between gap-2">
-                            <span className="text-xs text-[#F5F7FA]">
-                                {slot.sectionLabel} · Floor {slot.floorIndex + 1}
-                            </span>
-                            <select
-                                value={mapping[i] ?? ''}
-                                onChange={(e) => onMappingChange(i, e.target.value || null)}
-                                className="rounded bg-white/10 border border-white/10 px-2 py-1.5 text-[11px] text-[#F5F7FA] focus:border-[#C6A664]/50 focus:outline-none"
-                            >
-                                <option value="">— None —</option>
-                                {oldUnits.map((u) => (
-                                    <option key={u.id} value={u.id}>
-                                        {u.unit_number} ({u.status})
-                                    </option>
-                                ))}
-                            </select>
-                        </li>
-                    ))}
+                    {newSlots.map((slot, i) => {
+                        const { yLo, yHi } = slotYExtent(slot);
+                        return (
+                            <li key={i} className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between gap-2">
+                                <span className="text-xs text-[#F5F7FA]">
+                                    {slot.sectionLabel} · Y {yLo.toFixed(1)}–{yHi.toFixed(1)} m · floor {slot.floorAnnotation}
+                                </span>
+                                <CustomSelect
+                                    value={mapping[i] ?? ''}
+                                    onChange={(v) => onMappingChange(i, v || null)}
+                                    fullWidth={false}
+                                    className="min-w-[140px] max-w-[200px]"
+                                    frame="inline"
+                                    variant="compact"
+                                    buttonClassName="text-[11px] font-medium normal-case tracking-normal px-1 py-0.5"
+                                    options={[
+                                        { value: '', label: '— None —' },
+                                        ...oldUnits.map((u) => ({
+                                            value: u.id,
+                                            label: `${u.unit_number} (${u.status})`,
+                                        })),
+                                    ]}
+                                />
+                            </li>
+                        );
+                    })}
                 </ul>
             </div>
         </div>

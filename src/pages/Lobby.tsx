@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import { supabase } from '@/lib/supabase';
 import { motion } from 'framer-motion';
-import { LogOut, ArrowRight, Activity, Users, TrendingUp, MapPin, Layers, Plus, ImagePlus, CalendarCheck } from 'lucide-react';
+import { LogOut, ArrowRight, Activity, Users, TrendingUp, MapPin, Layers, Plus, ImagePlus, CalendarCheck, Box } from 'lucide-react';
 import type { Database } from '@/lib/database.types';
 import { formatCentsToCurrency, formatCentsToShortCurrency } from '@/lib/currency';
 
@@ -134,10 +134,12 @@ export default function Lobby() {
     const [reservationCount, setReservationCount] = useState<number>(0);
 
     useEffect(() => {
+        let alive = true;
         async function loadBuildings() {
             try {
                 const { data, error } = await supabase.from('buildings').select('*').order('created_at', { ascending: false });
                 if (error) throw error;
+                if (!alive) return;
                 const list = (data || []) as BuildingRow[];
                 if (profile?.role === 'admin') {
                     const [unitsRes, profilesRes, reservationsRes] = await Promise.all([
@@ -145,6 +147,7 @@ export default function Lobby() {
                         supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'client'),
                         supabase.from('reservations').select('id', { count: 'exact', head: true }),
                     ]);
+                    if (!alive) return;
                     const units = (unitsRes.data || []) as { building_id: string; status: string; price: number | null }[];
                     let totalCents = 0;
                     for (const u of units) {
@@ -173,12 +176,15 @@ export default function Lobby() {
                     setBuildings(list as BuildingWithMeta[]);
                 }
             } catch {
-                setBuildings([]);
+                if (alive) setBuildings([]);
             } finally {
-                setLoading(false);
+                if (alive) setLoading(false);
             }
         }
-        loadBuildings();
+        void loadBuildings();
+        return () => {
+            alive = false;
+        };
     }, [profile?.role]);
 
     if (loading) {
@@ -213,6 +219,13 @@ export default function Lobby() {
                         </button>
                         {isAdmin && (
                             <>
+                                <button
+                                    onClick={() => router.push('/world-environments')}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] tracking-widest uppercase font-semibold transition-all duration-200 hover:opacity-90 border border-white/15 text-[#94A3B8] hover:text-[#F5F7FA] hover:border-white/25"
+                                >
+                                    <Box size={12} />
+                                    Worlds
+                                </button>
                                 <button
                                     onClick={() => router.push('/skyboxes')}
                                     className="flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] tracking-widest uppercase font-semibold transition-all duration-200 hover:opacity-90 border border-white/15 text-[#94A3B8] hover:text-[#F5F7FA] hover:border-white/25"

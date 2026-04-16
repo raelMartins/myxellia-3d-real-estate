@@ -1,0 +1,13 @@
+# Next.js App Router serves routes like /detail/[id] and /engine/[id] at request time.
+# If Netlify is misconfigured as a plain static site (publish = "out" without the Next runtime),
+# deep links and reloads return 404 because no HTML exists at that path.
+# The OpenNext-based plugin wires SSR, RSC, and dynamic routes correctly.
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

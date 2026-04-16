@@ -42,6 +42,9 @@ interface EngineSidebarProps {
     onCreateUnitComplete: (identity: UnitIdentityValues, geometry: GeometryData, interiorFile: File | null) => Promise<import('./AddUnitsModal').UnitCreateResult | null>;
     onUnitCreatedWithInterior?: (unitId: string) => void;
     onOpenBuildingPlan?: () => void;
+    /** World-only engine preview (no building) */
+    worldPreviewMode?: boolean;
+    worldPreviewLabel?: string;
 }
 
 export default function EngineSidebar({
@@ -63,6 +66,8 @@ export default function EngineSidebar({
     onCreateUnitComplete,
     onUnitCreatedWithInterior,
     onOpenBuildingPlan,
+    worldPreviewMode = false,
+    worldPreviewLabel = 'World',
 }: EngineSidebarProps) {
     const params = useParams();
     const buildingId = (params?.buildingId as string | undefined) ?? undefined;
@@ -112,13 +117,44 @@ export default function EngineSidebar({
                 >
                     <PanelLeft size={22} strokeWidth={1.5} />
                 </button>
+            ) : worldPreviewMode ? (
+                <>
+                    <div className="shrink-0 p-6 pb-4 flex flex-col gap-4">
+                        <div className="flex items-center justify-between gap-2">
+                            <button
+                                type="button"
+                                onClick={() => router.push('/world-environments')}
+                                className="flex items-center gap-2 text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase hover:text-[#C6A664] transition-colors group"
+                            >
+                                <ArrowLeft size={12} className="group-hover:-translate-x-1 transition-transform" />
+                                World environments
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setCollapsed(true)}
+                                className="p-1.5 rounded-lg text-[#94A3B8] hover:text-[#C6A664] hover:bg-white/5 transition-colors"
+                                aria-label="Collapse sidebar"
+                            >
+                                <PanelLeftClose size={18} strokeWidth={1.5} />
+                            </button>
+                        </div>
+                        <div>
+                            <p className="text-[9px] tracking-[0.3em] text-[#C6A664] uppercase mb-2">World preview</p>
+                            <h2 className="font-serif-display text-2xl tracking-tight text-[#F5F7FA] leading-tight">{worldPreviewLabel}</h2>
+                            <p className="text-[11px] text-[#94A3B8] mt-3 leading-relaxed">
+                                Orbit the scene. Use the right panel to edit the default placement pad for projects that use this world (buildings without their own pad inherit it).
+                            </p>
+                        </div>
+                    </div>
+                </>
             ) : selectedUnit || singleUnitMode ? (
                 <>
                     <div className="shrink-0 p-4 pb-2 flex items-center justify-between gap-2">
                         <button
                             onClick={() => {
                                 if (singleUnitMode) {
-                                    router.back();
+                                    if (buildingId) router.push(`/detail/${buildingId}`);
+                                    else router.push('/');
                                 } else {
                                     setSelectedUnit(null);
                                     setUnitFormError(null);
@@ -163,8 +199,8 @@ export default function EngineSidebar({
             ) : (
                 <>
                     <div className="flex-1 flex flex-col min-h-0 glass-heavy">
-                        <div className="p-8 pb-6">
-                            <div className="flex items-center justify-between gap-2 mb-6">
+                        <div className="p-5 pb-3">
+                            <div className="flex items-center justify-between gap-2 mb-4">
                             <button
                                 onClick={() => router.push(`/detail/${buildingId}`)}
                                 className="flex items-center gap-2 text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase hover:text-[#C6A664] transition-colors group"
@@ -181,71 +217,66 @@ export default function EngineSidebar({
                                 <PanelLeftClose size={18} strokeWidth={1.5} />
                             </button>
                         </div>
-                        <h2 className="font-serif-display text-4xl tracking-tight text-[#F5F7FA] leading-none mb-2">
+                        <h2 className="font-serif-display text-3xl tracking-tight text-[#F5F7FA] leading-none mb-1.5">
                             {building?.name || 'Project'}
                         </h2>
-                        <div className="flex items-center gap-2 mb-8">
+                        <div className="flex items-center gap-2 mb-4">
                             <div className="w-1.5 h-1.5 rounded-full bg-[#39FF14] animate-pulse-neon" />
                             <span className="text-[9px] tracking-[0.3em] text-[#94A3B8] uppercase">Interactive Engine</span>
                         </div>
                     </div>
 
-                    <div className="flex-1 min-h-0 overflow-y-auto px-8 custom-scrollbar min-w-0">
-                        <div className="space-y-10 pb-12">
+                    <div className="flex-1 min-h-0 overflow-y-auto px-5 custom-scrollbar min-w-0">
+                        <div className="space-y-4 pb-8">
                             {floors.map((floor) => (
-                                <div key={floor.id} className="space-y-4">
-                                    <div className="flex items-center gap-3">
+                                <div key={floor.id} className="space-y-1.5">
+                                    <div className="flex items-center gap-2">
                                         <div className="h-px flex-1 bg-white/5" />
-                                        <h4 className="text-[10px] tracking-[0.3em] uppercase text-[#C6A664] font-medium whitespace-nowrap">
+                                        <h4 className="text-[9px] tracking-[0.22em] uppercase text-[#C6A664] font-medium whitespace-nowrap">
                                             {floor.name}
                                         </h4>
                                         <div className="h-px flex-1 bg-white/5" />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <ul className="flex flex-col gap-0.5 list-none p-0 m-0">
                                         {floor.units.map((unit) => {
                                             const status = unitStatuses[unit.id] ?? 'available';
                                             const isSelected = selectedUnit === unit.id;
                                             const isHovered = hoveredUnit === unit.id;
                                             return (
-                                                <button
-                                                    key={unit.id}
-                                                    onClick={() => setSelectedUnit(unit.id)}
-                                                    onMouseEnter={() => setHoveredUnit(unit.id)}
-                                                    onMouseLeave={() => setHoveredUnit(null)}
-                                                    className={`
-                                                        relative p-4 rounded-xl text-left transition-all duration-300
-                                                        ${isSelected ? 'glass-heavy border-[#C6A664]/40 bg-white/5 ring-1 ring-[#C6A664]/20' : 'glass border-white/5 hover:border-white/15'}
-                                                    `}
-                                                >
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <span className={`text-xs font-medium ${isSelected ? 'text-[#F5F7FA]' : 'text-[#94A3B8]'}`}>
+                                                <li key={unit.id}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedUnit(unit.id)}
+                                                        onMouseEnter={() => setHoveredUnit(unit.id)}
+                                                        onMouseLeave={() => setHoveredUnit(null)}
+                                                        className={`
+                                                            relative w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-all duration-200
+                                                            ${isSelected ? 'glass-heavy border border-[#C6A664]/35 bg-white/5 ring-1 ring-[#C6A664]/15' : 'border border-transparent hover:bg-white/[0.04]'}
+                                                        `}
+                                                    >
+                                                        <span className={`shrink-0 text-[11px] font-medium tabular-nums ${isSelected ? 'text-[#F5F7FA]' : 'text-[#94A3B8]'}`}>
                                                             {unit.unit_number}
                                                         </span>
-                                                        <div className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[status]}`} />
-                                                    </div>
-                                                    <div className="text-[10px] tracking-wider text-[#94A3B8]/60 font-light truncate">
-                                                        {unit.price ? formatCentsToCurrency(Number(unit.price)) : 'Contact for Price'}
-                                                    </div>
-                                                    {(isSelected || isHovered) && (
-                                                        <motion.div
-                                                            layoutId="glow"
-                                                            className="absolute inset-0 rounded-xl pointer-events-none"
-                                                            style={{ boxShadow: '0 0 20px rgba(198,166,100,0.1)' }}
-                                                        />
-                                                    )}
-                                                </button>
+                                                        <span className="flex-1 min-w-0 text-[10px] tracking-wide text-[#94A3B8]/70 font-light truncate text-right">
+                                                            {unit.price ? formatCentsToCurrency(Number(unit.price)) : 'Contact'}
+                                                        </span>
+                                                        <div className={`shrink-0 w-1.5 h-1.5 rounded-full ${STATUS_DOT[status]}`} />
+                                                        {(isSelected || isHovered) && (
+                                                            <motion.div
+                                                                layoutId="glow"
+                                                                className="absolute inset-0 rounded-lg pointer-events-none"
+                                                                style={{ boxShadow: '0 0 14px rgba(198,166,100,0.08)' }}
+                                                            />
+                                                        )}
+                                                    </button>
+                                                </li>
                                             );
                                         })}
-                                    </div>
+                                    </ul>
                                 </div>
                             ))}
-                            {floors.length === 0 && (
-                                <div className="text-center py-10">
-                                    <p className="text-[#94A3B8] text-[10px] tracking-widest uppercase">Inventory Loading...</p>
-                                </div>
-                            )}
                             {isAdmin && (
-                                <div className="space-y-4 pt-4 border-t border-white/5">
+                                <div className="space-y-2 pt-3 mt-1 border-t border-white/5">
                                     <h4 className="text-[10px] tracking-[0.3em] uppercase text-[#C6A664] font-medium">Add unit</h4>
                                     <button
                                         type="button"

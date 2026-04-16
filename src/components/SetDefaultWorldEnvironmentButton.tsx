@@ -1,0 +1,54 @@
+'use client';
+
+import { useState } from 'react';
+import { Check } from 'lucide-react';
+import { useAuthStore } from '@/store/auth.store';
+
+interface SetDefaultWorldEnvironmentButtonProps {
+    buildingId: string;
+    worldEnvironmentId: string | null;
+    onSaved: () => void;
+}
+
+export default function SetDefaultWorldEnvironmentButton({
+    buildingId,
+    worldEnvironmentId,
+    onSaved,
+}: SetDefaultWorldEnvironmentButtonProps) {
+    const [saving, setSaving] = useState(false);
+
+    const handleClick = async () => {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const token = useAuthStore.getState().session?.access_token;
+        if (!supabaseUrl || !key || !token) return;
+        setSaving(true);
+        try {
+            const res = await fetch(`${supabaseUrl}/rest/v1/buildings?id=eq.${buildingId}`, {
+                method: 'PATCH',
+                headers: {
+                    apikey: key,
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ world_environment_id: worldEnvironmentId }),
+            });
+            if (res.ok) onSaved();
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <button
+            type="button"
+            onClick={handleClick}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] tracking-widest uppercase font-bold text-[#C6A664] hover:bg-[#C6A664]/10 disabled:opacity-50 transition-colors"
+            title="Set as default world environment for this project"
+        >
+            <Check size={10} />
+            {saving ? 'Saving…' : 'Set default'}
+        </button>
+    );
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useId } from 'react';
 import { isSimplePolygon, type Point2 } from '@/lib/polygonUtils';
 
 const CANVAS_SIZE = 280;
@@ -10,9 +10,12 @@ const VERTEX_R = 0.02;
 interface PolygonCanvasProps {
     vertices: Point2[];
     onVerticesChange: (vertices: Point2[]) => void;
+    /** Local object URL or URL for a floor plan shown under the footprint (optional). */
+    backgroundImageHref?: string | null;
 }
 
-export default function PolygonCanvas({ vertices, onVerticesChange }: PolygonCanvasProps) {
+export default function PolygonCanvas({ vertices, onVerticesChange, backgroundImageHref = null }: PolygonCanvasProps) {
+    const clipId = useId().replace(/:/g, '');
     const svgRef = useRef<SVGSVGElement>(null);
     const draggingRef = useRef<number | null>(null);
 
@@ -62,6 +65,9 @@ export default function PolygonCanvas({ vertices, onVerticesChange }: PolygonCan
                   .join(' ') + ' Z'
             : '';
 
+    const hasPlan = !!backgroundImageHref;
+    const gridStroke = hasPlan ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)';
+
     return (
         <div className="rounded-xl border border-white/10 bg-white/5 overflow-hidden" style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}>
             <svg
@@ -73,7 +79,27 @@ export default function PolygonCanvas({ vertices, onVerticesChange }: PolygonCan
                 onPointerUp={handlePointerUp}
                 onPointerLeave={handlePointerUp}
             >
-                <g stroke="rgba(255,255,255,0.08)" strokeWidth="0.01">
+                {hasPlan && (
+                    <>
+                        <defs>
+                            <clipPath id={clipId}>
+                                <rect x={-0.5} y={-0.5} width={1} height={1} />
+                            </clipPath>
+                        </defs>
+                        <g clipPath={`url(#${clipId})`}>
+                            <image
+                                href={backgroundImageHref}
+                                x={-0.5}
+                                y={-0.5}
+                                width={1}
+                                height={1}
+                                preserveAspectRatio="xMidYMid meet"
+                                opacity={0.92}
+                            />
+                        </g>
+                    </>
+                )}
+                <g stroke={gridStroke} strokeWidth="0.01">
                     {gridLines.map((line, i) => (
                         <line key={i} x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} />
                     ))}

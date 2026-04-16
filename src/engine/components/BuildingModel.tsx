@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useRef, useLayoutEffect, useState, useCallback, useEffect } from 'react';
+import { Suspense, useRef, useLayoutEffect, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGLTF, Html, Center, useFBX } from '@react-three/drei';
@@ -10,6 +10,9 @@ import { ErrorBoundary } from 'react-error-boundary';
 import UnitBox, { type UnitMesh } from './UnitBox';
 import UnitPrism from './UnitPrism';
 import type { Database } from '@/lib/database.types';
+import type { GroundPlacementPad } from '@/lib/groundPlacementPad';
+import { extensionFromModelUrl } from '@/lib/model3dFormats';
+import { meshAabbXZInAncestorSpace } from '@/engine/lib/modelBoundsInAncestorSpace';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
 type DisplayUnit = { id: string; position: [number, number, number]; size: [number, number, number]; footprint?: [number, number][] | null; rotation?: number };
@@ -37,10 +40,22 @@ function ModelGLTF({ url }: { url: string }) {
     return <primitive object={scene} />;
 }
 
+function ModelBlendUnsupported() {
+    return (
+        <Html center>
+            <div className="max-w-[min(22rem,85vw)] bg-amber-500/15 text-amber-200/95 p-4 rounded-lg backdrop-blur-md border border-amber-500/25 text-[11px] leading-relaxed tracking-wide">
+                Blender <span className="font-mono text-amber-100/90">.blend</span> is not rendered in this viewer. Export{' '}
+                <span className="font-mono text-amber-100/90">.glb</span> from Blender (File → Export → glTF 2.0), or use world-environment upload with the conversion worker enabled.
+            </div>
+        </Html>
+    );
+}
+
 function Model({ url, extension }: { url: string; extension?: string }) {
-    const ext = (extension || url.split('.').pop() || '').toLowerCase().replace(/^\./, '');
+    const ext = (extension || extensionFromModelUrl(url)).toLowerCase().replace(/^\./, '');
     if (ext === 'fbx') return <ModelFBX url={url} />;
     if (ext === 'obj') return <ModelOBJ url={url} />;
+    if (ext === 'blend') return <ModelBlendUnsupported />;
     return <ModelGLTF url={url} />;
 }
 
@@ -98,9 +113,117 @@ function PlaceholderBuilding() {
     );
 }
 
+/** Pick 0 or π/2 so the building’s longer XZ footprint aligns with the pad’s larger half-extent (maximizes contain scale). */
+function pickAutoLengthwiseYawRad(
+    orient: THREE.Object3D,
+    scaled: THREE.Object3D,
+    modelOnly: THREE.Object3D,
+    hx: number,
+    hz: number
+): number {
+    const candidates = [0, Math.PI / 2];
+    let best = 0;
+    let bestFit = -1;
+    scaled.scale.set(1, 1, 1);
+    for (const b of candidates) {
+        orient.rotation.set(0, b, 0);
+        orient.updateMatrixWorld(true);
+        scaled.updateMatrixWorld(true);
+        modelOnly.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(modelOnly);
+        const W = box.max.x - box.min.x;
+        const D = box.max.z - box.min.z;
+        if (W < 1e-6 || D < 1e-6) continue;
+        const fit = Math.min((2 * hx) / W, (2 * hz) / D);
+        if (fit > bestFit + 1e-9) {
+            bestFit = fit;
+            best = b;
+        }
+    }
+    return best;
+}
+
+function BuildingPadFit({
+    placementPad,
+    url,
+    extension,
+    children,
+    onModelBoundsXZ,
+}: {
+    placementPad: GroundPlacementPad;
+    url: string;
+    extension?: string;
+    children: ReactNode;
+    onModelBoundsXZ: (b: { minX: number; maxX: number; minZ: number; maxZ: number }) => void;
+}) {
+    const [s, setS] = useState(1);
+    const orientRef = useRef<THREE.Group>(null);
+    const scaled = useRef<THREE.Group>(null);
+    const modelOnlyRef = useRef<THREE.Group>(null);
+    const [cx, cz] = placementPad.center;
+    const userYaw = placementPad.buildingYaw ?? 0;
+
+    useLayoutEffect(() => {
+        const orient = orientRef.current;
+        const g = scaled.current;
+        const modelOnly = modelOnlyRef.current;
+        if (!orient || !g || !modelOnly) return;
+        const [hx, hz] = placementPad.halfExtents;
+
+        g.scale.set(1, 1, 1);
+        const base = pickAutoLengthwiseYawRad(orient, g, modelOnly, hx, hz);
+        orient.rotation.set(0, base + userYaw, 0);
+
+        let sRun = 1;
+        for (let i = 0; i < 12; i++) {
+            g.scale.set(sRun, sRun, sRun);
+            orient.updateMatrixWorld(true);
+            g.updateMatrixWorld(true);
+            modelOnly.updateMatrixWorld(true);
+            const box = new THREE.Box3().setFromObject(modelOnly);
+            const W = box.max.x - box.min.x;
+            const D = box.max.z - box.min.z;
+            if (W < 1e-5 || D < 1e-5) return;
+            const sNext = Math.min((2 * hx * sRun) / W, (2 * hz * sRun) / D);
+            if (!Number.isFinite(sNext) || sNext <= 0) return;
+            if (Math.abs(sNext - sRun) < 1e-5) {
+                sRun = sNext;
+                break;
+            }
+            sRun = sNext;
+        }
+        const clamped = Math.min(Math.max(sRun, 1e-4), 500);
+        setS((prev) => (Math.abs(prev - clamped) > 1e-5 ? clamped : prev));
+
+        orient.updateMatrixWorld(true);
+        g.updateMatrixWorld(true);
+        modelOnly.updateMatrixWorld(true);
+        const xz = meshAabbXZInAncestorSpace(modelOnly, g);
+        if (xz) onModelBoundsXZ(xz);
+    }, [placementPad.halfExtents, placementPad.center, userYaw, url, onModelBoundsXZ]);
+
+    return (
+        <group position={[cx, 0, cz]}>
+            <group ref={orientRef}>
+                <group ref={scaled} scale={[s, s, s]}>
+                    <group ref={modelOnlyRef}>
+                        <ModelWithRedBase url={url} extension={extension} onBounds={() => {}} />
+                    </group>
+                    {children}
+                </group>
+            </group>
+        </group>
+    );
+}
+
 export default function BuildingModel() {
-    const { building, units, setModelBoundsXZ, focusUnitId } = useEngineStore();
-    const onBounds = useCallback((b: { minX: number; maxX: number; minZ: number; maxZ: number }) => setModelBoundsXZ(b), [setModelBoundsXZ]);
+    const { building, units, setModelBoundsXZ, focusUnitId, placementPad, worldPreviewActive } = useEngineStore();
+    const onBounds = useCallback(
+        (b: { minX: number; maxX: number; minZ: number; maxZ: number }) => {
+            setModelBoundsXZ(b);
+        },
+        [setModelBoundsXZ]
+    );
     useEffect(() => {
         if (!building?.model_url) setModelBoundsXZ(null);
     }, [building?.model_url, setModelBoundsXZ]);
@@ -138,6 +261,18 @@ export default function BuildingModel() {
         ? allDisplayUnits.filter((u) => u.id === focusUnitId)
         : allDisplayUnits;
 
+    const unitNodes = displayUnits.map((u: DisplayUnit) =>
+        u.footprint && u.footprint.length >= 3 ? (
+            <UnitPrism
+                key={u.id}
+                unit={{ id: u.id, position: u.position, size: u.size, footprint: u.footprint, rotation: u.rotation ?? 0 }}
+                allowDrag={true}
+            />
+        ) : (
+            <UnitBox key={u.id} unit={u} />
+        )
+    );
+
     return (
         <group>
             <Suspense fallback={
@@ -147,24 +282,26 @@ export default function BuildingModel() {
                     </div>
                 </Html>
             }>
-                {building?.model_url ? (
-                    <ModelWithRedBase url={building.model_url} onBounds={onBounds} />
-                ) : (
+                {building?.model_url && placementPad ? (
+                    <BuildingPadFit
+                        placementPad={placementPad}
+                        url={building.model_url}
+                        extension={(building as { model_extension?: string }).model_extension}
+                        onModelBoundsXZ={onBounds}
+                    >
+                        {unitNodes}
+                    </BuildingPadFit>
+                ) : building?.model_url ? (
+                    <>
+                        <ModelWithRedBase url={building.model_url} onBounds={onBounds} />
+                        {unitNodes}
+                    </>
+                ) : worldPreviewActive ? null : (
                     <PlaceholderBuilding />
                 )}
             </Suspense>
 
-            {displayUnits.map((u: DisplayUnit) =>
-                u.footprint && u.footprint.length >= 3 ? (
-                    <UnitPrism
-                        key={u.id}
-                        unit={{ id: u.id, position: u.position, size: u.size, footprint: u.footprint, rotation: u.rotation ?? 0 }}
-                        allowDrag={true}
-                    />
-                ) : (
-                    <UnitBox key={u.id} unit={u} />
-                )
-            )}
+            {!building?.model_url && !worldPreviewActive ? unitNodes : null}
         </group>
     );
 }

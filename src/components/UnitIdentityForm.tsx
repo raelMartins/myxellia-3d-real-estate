@@ -1,6 +1,8 @@
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { CurrencyInput } from './CurrencyInput';
+import CustomSelect from './CustomSelect';
+import NumberInput from './NumberInput';
 
 const VIEW_OPTIONS = ['City', 'Garden', 'Pool', 'Sea', 'Skyline', 'Park', 'Other'];
 const AMENITY_OPTIONS = ['Balcony', 'Smart Home', 'Walk-in Closet', 'Gym', 'Pool', 'Concierge', 'Parking', 'Storage'];
@@ -100,7 +102,22 @@ export default function UnitIdentityForm({ defaultValues, onNext, onBack }: Unit
                     </div>
                     <div>
                         <label className={labelCls}>Unit floor</label>
-                        <input type="text" inputMode="numeric" placeholder="1" className={inputCls} {...register('floor')} />
+                        <Controller
+                            name="floor"
+                            control={control}
+                            render={({ field }) => (
+                                <NumberInput
+                                    ref={field.ref}
+                                    name={field.name}
+                                    onBlur={field.onBlur}
+                                    min={1}
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    placeholder="1"
+                                    className={inputCls}
+                                />
+                            )}
+                        />
                         {errors.floor && <p className="mt-1 text-[10px] text-red-400">{errors.floor.message}</p>}
                     </div>
                     <div>
@@ -120,29 +137,87 @@ export default function UnitIdentityForm({ defaultValues, onNext, onBack }: Unit
                     </div>
                     <div>
                         <label className={labelCls}>Area (ft²)</label>
-                        <input type="text" inputMode="decimal" placeholder="e.g. 1200" className={inputCls} {...register('area_sqm')} />
+                        <Controller
+                            name="area_sqm"
+                            control={control}
+                            render={({ field }) => (
+                                <NumberInput
+                                    ref={field.ref}
+                                    name={field.name}
+                                    onBlur={field.onBlur}
+                                    allowDecimal
+                                    hideZeroAsEmpty
+                                    value={field.value ?? 0}
+                                    onChange={field.onChange}
+                                    placeholder="e.g. 1200"
+                                    className={inputCls}
+                                />
+                            )}
+                        />
                         {errors.area_sqm && <p className="mt-1 text-[10px] text-red-400">{errors.area_sqm.message}</p>}
                     </div>
                 </div>
                 <div className="space-y-4">
                     <div>
                         <label className={labelCls}>Bathrooms</label>
-                        <input type="text" inputMode="numeric" placeholder="e.g. 2" className={inputCls} {...register('bathrooms')} />
+                        <Controller
+                            name="bathrooms"
+                            control={control}
+                            render={({ field }) => (
+                                <NumberInput
+                                    ref={field.ref}
+                                    name={field.name}
+                                    onBlur={field.onBlur}
+                                    hideZeroAsEmpty
+                                    value={field.value ?? 0}
+                                    onChange={field.onChange}
+                                    placeholder="e.g. 2"
+                                    className={inputCls}
+                                />
+                            )}
+                        />
                         {errors.bathrooms && <p className="mt-1 text-[10px] text-red-400">{errors.bathrooms.message}</p>}
                     </div>
                     <div>
                         <label className={labelCls}>Bedrooms</label>
-                        <input type="text" inputMode="numeric" placeholder="e.g. 3" className={inputCls} {...register('bedrooms')} />
+                        <Controller
+                            name="bedrooms"
+                            control={control}
+                            render={({ field }) => (
+                                <NumberInput
+                                    ref={field.ref}
+                                    name={field.name}
+                                    onBlur={field.onBlur}
+                                    hideZeroAsEmpty
+                                    value={field.value ?? 0}
+                                    onChange={field.onChange}
+                                    placeholder="e.g. 3"
+                                    className={inputCls}
+                                />
+                            )}
+                        />
                         {errors.bedrooms && <p className="mt-1 text-[10px] text-red-400">{errors.bedrooms.message}</p>}
                     </div>
                     <div>
                         <label className={labelCls}>View</label>
-                        <select className={inputCls} {...register('view_type')}>
-                            <option value="">Select view</option>
-                            {VIEW_OPTIONS.map((v) => (
-                                <option key={v} value={v}>{v}</option>
-                            ))}
-                        </select>
+                        <Controller
+                            name="view_type"
+                            control={control}
+                            render={({ field }) => (
+                                <CustomSelect
+                                    value={field.value ?? ''}
+                                    onChange={field.onChange}
+                                    onBlur={field.onBlur}
+                                    placeholder="Select view"
+                                    options={[
+                                        { value: '', label: 'Select view' },
+                                        ...VIEW_OPTIONS.map((v) => ({ value: v, label: v })),
+                                    ]}
+                                    className="w-full"
+                                    buttonClassName={inputCls}
+                                />
+                            )}
+                        />
                     </div>
                     <div>
                         <label className={labelCls}>Amenities</label>

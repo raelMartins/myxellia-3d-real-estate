@@ -17,9 +17,14 @@ type BuildingRow = Database['public']['Tables']['buildings']['Row'];
 type BuildingDetail = BuildingRow & { available_units?: number; floors?: string | number };
 type UnitForDetail = Pick<Database['public']['Tables']['units']['Row'], 'status' | 'bedrooms' | 'bathrooms' | 'area_sqm' | 'floor' | 'price'>;
 
+function paramToString(v: string | string[] | undefined): string | undefined {
+    if (v == null) return undefined;
+    return Array.isArray(v) ? v[0] : v;
+}
+
 export default function PropertyDetail() {
     const params = useParams();
-    const buildingId = (params?.buildingId as string | undefined) ?? undefined;
+    const buildingId = paramToString(params?.buildingId as string | string[] | undefined);
     const router = useRouter();
     const [bldg, setBldg] = useState<BuildingDetail | null>(null);
     const [units, setUnits] = useState<UnitForDetail[]>([]);
@@ -27,7 +32,13 @@ export default function PropertyDetail() {
 
     useEffect(() => {
         const id = buildingId;
-        if (!id) return;
+        if (!id) {
+            setLoading(false);
+            setBldg(null);
+            setUnits([]);
+            return;
+        }
+        const buildingKey: string = id;
         setLoading(true);
         setBldg(null);
         setUnits([]);
@@ -35,8 +46,8 @@ export default function PropertyDetail() {
         async function load() {
             try {
                 const [bldgRes, unitsRes] = await Promise.all([
-                    supabase.from('buildings').select('*').eq('id', id!).single(),
-                    supabase.from('units').select('status, bedrooms, bathrooms, area_sqm, floor, price').eq('building_id', id!).is('deleted_at', null),
+                    supabase.from('buildings').select('*').eq('id', buildingKey).single(),
+                    supabase.from('units').select('status, bedrooms, bathrooms, area_sqm, floor, price').eq('building_id', buildingKey).is('deleted_at', null),
                 ]);
                 if (bldgRes.error) throw bldgRes.error;
                 if (!cancelled) {
@@ -49,8 +60,10 @@ export default function PropertyDetail() {
                 if (!cancelled) setLoading(false);
             }
         }
-        load();
-        return () => { cancelled = true; };
+        void load();
+        return () => {
+            cancelled = true;
+        };
     }, [buildingId]);
 
     if (loading) {
@@ -97,7 +110,7 @@ export default function PropertyDetail() {
 
                 {/* Back Button */}
                 <motion.button
-                    onClick={() => router.back()}
+                    onClick={() => router.push('/')}
                     initial={{ opacity: 0, x: -12 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.5, ease }}

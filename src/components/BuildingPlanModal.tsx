@@ -6,13 +6,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2 } from 'lucide-react';
 import UnitArchitectStepProgress from './UnitArchitectStepProgress';
 import BuildingPlanEditor from './BuildingPlanEditor';
-import SectionFloorsConfig, { type NewUnitSlot } from './SectionFloorsConfig';
+import SectionObliqueStackEditor from './SectionObliqueStackEditor';
+import type { NewUnitSlot } from '@/lib/sectionPlanSlots';
 import MigrationReconcileView from './MigrationReconcileView';
 import type { SectionPlan } from '@/lib/database.types';
 import type { UnitRow } from '@/lib/database.types';
 import { polygonPairsIntersect } from '@/lib/polygonUtils';
 
-const STEPS_BASE = ['Bird\'s Eye Plan', 'Floors & Height'] as const;
+const STEPS_BASE = ['Bird\'s Eye Plan', 'Section stacks (3D)'] as const;
 
 export type BuildingPlanApplyPayload = {
     plan: SectionPlan;
@@ -120,7 +121,7 @@ export default function BuildingPlanModal({ open, onClose, buildingId: _building
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.96, opacity: 0 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="glass-heavy rounded-2xl border border-white/10 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+                    className="glass-heavy rounded-2xl border border-white/10 w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
                     style={{ minHeight: 'min(560px, 90vh)' }}
                 >
                     <div className="flex items-center justify-between p-6 border-b border-white/10 shrink-0">
@@ -163,9 +164,17 @@ export default function BuildingPlanModal({ open, onClose, buildingId: _building
                             )}
                             {step === 1 && (
                                 <motion.div key="floors" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }}>
-                                    {plan && (
-                                        <SectionFloorsConfig
+                                    {plan && planModelLoading && (
+                                        <div className="flex items-center justify-center py-24 text-[11px] tracking-widest text-[#94A3B8] uppercase">
+                                            Loading model for 3D preview…
+                                        </div>
+                                    )}
+                                    {plan && !planModelLoading && (
+                                        <SectionObliqueStackEditor
+                                            key={plan.sections.map((s) => s.id).join('|')}
                                             plan={plan}
+                                            modelUrl={planModelUrl ?? ''}
+                                            modelExtension={sourceModelUrl ? sourceModelUrl.split('.').pop() : undefined}
                                             onSlotsChange={handleSlotsFromFloors}
                                         />
                                     )}

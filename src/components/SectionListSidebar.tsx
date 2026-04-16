@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
+import NumberInput from '@/components/NumberInput';
 import type { SectionPlanSection } from '@/lib/database.types';
 
 interface SectionListSidebarProps {
@@ -22,15 +23,15 @@ export default function SectionListSidebar({
     onAddSection,
 }: SectionListSidebarProps) {
     const [adding, setAdding] = useState(false);
-    const [sidesInput, setSidesInput] = useState('4');
+    const [sidesInput, setSidesInput] = useState(4);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editLabel, setEditLabel] = useState('');
 
     const handleAdd = () => {
-        const n = Math.max(3, parseInt(sidesInput, 10) || 4);
+        const n = Math.max(3, sidesInput >= 3 ? sidesInput : 4);
         onAddSection(n);
         setAdding(false);
-        setSidesInput('4');
+        setSidesInput(4);
     };
 
     const startEdit = (s: SectionPlanSection) => {
@@ -91,11 +92,9 @@ export default function SectionListSidebar({
             {adding ? (
                 <div className="flex flex-col gap-2">
                     <label className="text-[9px] tracking-[0.2em] text-[#C6A664] uppercase">Sides</label>
-                    <input
-                        type="text"
-                        inputMode="numeric"
+                    <NumberInput
                         value={sidesInput}
-                        onChange={(e) => setSidesInput(e.target.value)}
+                        onChange={setSidesInput}
                         className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-[#F5F7FA]"
                     />
                     <div className="flex gap-2">

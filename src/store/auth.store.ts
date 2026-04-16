@@ -7,6 +7,9 @@ import type { Database } from '@/lib/database.types'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
+/** Single listener — `initialize()` can run more than once (e.g. React Strict Mode). */
+let authStateSubscription: { unsubscribe: () => void } | null = null
+
 interface AuthState {
     session: Session | null
     user: User | null
@@ -95,7 +98,9 @@ export const useAuthStore = create<AuthState>((set) => ({
             set({ loading: false })
         }
 
-        supabase.auth.onAuthStateChange(async (_event, session) => {
+        if (authStateSubscription) return
+
+        const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
             set({ session, user: session?.user ?? null })
 
             if (session?.user) {
@@ -110,5 +115,6 @@ export const useAuthStore = create<AuthState>((set) => ({
                 set({ profile: null })
             }
         })
+        authStateSubscription = data.subscription
     }
 }))

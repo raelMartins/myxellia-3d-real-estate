@@ -48,7 +48,9 @@ export interface Database {
                     env_context?: string | null
                     store_url?: string | null
                     generated_env_url?: string | null
+                    world_environment_id?: string | null
                     section_plan?: SectionPlan | null
+                    ground_placement_pad?: Json | null
                 }
                 Insert: {
                     id?: string
@@ -65,7 +67,9 @@ export interface Database {
                     env_context?: string | null
                     store_url?: string | null
                     generated_env_url?: string | null
+                    world_environment_id?: string | null
                     section_plan?: SectionPlan | null
+                    ground_placement_pad?: Json | null
                 }
                 Update: {
                     id?: string
@@ -82,7 +86,9 @@ export interface Database {
                     env_context?: string | null
                     store_url?: string | null
                     generated_env_url?: string | null
+                    world_environment_id?: string | null
                     section_plan?: SectionPlan | null
+                    ground_placement_pad?: Json | null
                 }
             }
             units: {
@@ -233,10 +239,136 @@ export interface Database {
                     file_url?: string
                 }
             }
+            skybox_collections: {
+                Row: {
+                    id: string
+                    created_at: string
+                    label: string
+                }
+                Insert: {
+                    id?: string
+                    created_at?: string
+                    label: string
+                }
+                Update: {
+                    id?: string
+                    created_at?: string
+                    label?: string
+                }
+            }
+            skybox_collection_slots: {
+                Row: {
+                    id: string
+                    collection_id: string
+                    label: string
+                    file_url: string
+                    sort_order: number
+                }
+                Insert: {
+                    id?: string
+                    collection_id: string
+                    label: string
+                    file_url: string
+                    sort_order: number
+                }
+                Update: {
+                    id?: string
+                    collection_id?: string
+                    label?: string
+                    file_url?: string
+                    sort_order?: number
+                }
+            }
+            world_environments: {
+                Row: {
+                    id: string
+                    created_at: string
+                    label: string
+                    ground_model_url: string
+                    skybox_environment_id: string | null
+                    skybox_collection_id: string | null
+                    ground_placement_pad?: Json | null
+                    active_surround_scatter_asset_id?: string | null
+                    active_surround_catalog_asset_id?: string | null
+                    surround_layout_mode?: string | null
+                }
+                Insert: {
+                    id?: string
+                    created_at?: string
+                    label: string
+                    ground_model_url: string
+                    skybox_environment_id?: string | null
+                    skybox_collection_id?: string | null
+                    ground_placement_pad?: Json | null
+                    active_surround_scatter_asset_id?: string | null
+                    active_surround_catalog_asset_id?: string | null
+                    surround_layout_mode?: string | null
+                }
+                Update: {
+                    id?: string
+                    created_at?: string
+                    label?: string
+                    ground_model_url?: string
+                    skybox_environment_id?: string | null
+                    skybox_collection_id?: string | null
+                    ground_placement_pad?: Json | null
+                    active_surround_scatter_asset_id?: string | null
+                    active_surround_catalog_asset_id?: string | null
+                    surround_layout_mode?: string | null
+                }
+            }
+            surround_catalog_assets: {
+                Row: {
+                    id: string
+                    created_at: string
+                    label: string
+                    file_url: string
+                }
+                Insert: {
+                    id?: string
+                    created_at?: string
+                    label: string
+                    file_url: string
+                }
+                Update: {
+                    id?: string
+                    created_at?: string
+                    label?: string
+                    file_url?: string
+                }
+            }
+            world_scatter_assets: {
+                Row: {
+                    id: string
+                    created_at: string
+                    world_environment_id: string
+                    label: string
+                    file_url: string
+                    kind: string
+                }
+                Insert: {
+                    id?: string
+                    created_at?: string
+                    world_environment_id: string
+                    label: string
+                    file_url: string
+                    kind: string
+                }
+                Update: {
+                    id?: string
+                    created_at?: string
+                    world_environment_id?: string
+                    label?: string
+                    file_url?: string
+                    kind?: string
+                }
+            }
         }
     }
 }
 
+export type SurroundCatalogAssetRow =
+    Database['public']['Tables']['surround_catalog_assets']['Row'];
 export type UnitRow = Database['public']['Tables']['units']['Row'];
 export type ReservationRow = Database['public']['Tables']['reservations']['Row'];
 export type ProfileRow = Database['public']['Tables']['profiles']['Row'];

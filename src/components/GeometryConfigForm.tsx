@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import NumberInput from './NumberInput';
 
 export type GeometryFormValues = {
     sides: number;
@@ -17,6 +18,12 @@ interface GeometryConfigFormProps {
     onHeightChange: (n: number) => void;
     onDepthChange: (n: number) => void;
     errors?: Partial<Record<keyof GeometryFormValues, string>>;
+    /** When true, polygon vertex count is driven by tracing; clear the plan to change sides. */
+    sidesDisabled?: boolean;
+}
+
+function parseNum(n: number, min: number): number {
+    return Number.isFinite(n) && n >= min ? n : min;
 }
 
 export default function GeometryConfigForm({
@@ -29,15 +36,11 @@ export default function GeometryConfigForm({
     onHeightChange,
     onDepthChange,
     errors = {},
+    sidesDisabled = false,
 }: GeometryConfigFormProps) {
     const id = useId();
     const inputCls = 'w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA] placeholder-[#94A3B8]/50 focus:border-[#C6A664]/50 focus:outline-none';
     const labelCls = 'block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5';
-
-    const parseNum = (s: string, min: number): number => {
-        const n = Number(s);
-        return Number.isFinite(n) && n >= min ? n : min;
-    };
 
     return (
         <div className="space-y-4">
@@ -45,32 +48,30 @@ export default function GeometryConfigForm({
                 <label htmlFor={`${id}-sides`} className={labelCls}>
                     Number of sides (min 3)
                 </label>
-                <input
+                <NumberInput
                     id={`${id}-sides`}
-                    type="text"
-                    inputMode="numeric"
-                    value={sides < 3 ? '' : sides}
-                    onChange={(e) => {
-                        const v = e.target.value;
-                        if (v === '') {
-                            onSidesChange(0);
-                            return;
-                        }
-                        onSidesChange(parseNum(v, 3));
-                    }}
+                    hideWhenBelow={3}
+                    value={sides}
+                    onChange={onSidesChange}
                     placeholder="4"
-                    className={inputCls}
+                    disabled={sidesDisabled}
+                    className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
                 />
                 {errors.sides && <p className="mt-1 text-[10px] text-red-400">{errors.sides}</p>}
+                {sidesDisabled && (
+                    <p className="mt-1 text-[10px] text-[#94A3B8] leading-snug">
+                        Remove the floor plan underlay to change the number of sides.
+                    </p>
+                )}
             </div>
             <div>
                 <label htmlFor={`${id}-height`} className={labelCls}>Height</label>
-                <input
+                <NumberInput
                     id={`${id}-height`}
-                    type="text"
-                    inputMode="decimal"
-                    value={height <= 0 ? '' : height}
-                    onChange={(e) => onHeightChange(parseNum(e.target.value, 0))}
+                    allowDecimal
+                    hideZeroAsEmpty
+                    value={height}
+                    onChange={(n) => onHeightChange(parseNum(n, 0))}
                     placeholder="e.g. 2.5"
                     className={inputCls}
                 />
@@ -78,12 +79,12 @@ export default function GeometryConfigForm({
             </div>
             <div>
                 <label htmlFor={`${id}-width`} className={labelCls}>Width</label>
-                <input
+                <NumberInput
                     id={`${id}-width`}
-                    type="text"
-                    inputMode="decimal"
-                    value={width <= 0 ? '' : width}
-                    onChange={(e) => onWidthChange(parseNum(e.target.value, 0))}
+                    allowDecimal
+                    hideZeroAsEmpty
+                    value={width}
+                    onChange={(n) => onWidthChange(parseNum(n, 0))}
                     placeholder="e.g. 3"
                     className={inputCls}
                 />
@@ -91,12 +92,12 @@ export default function GeometryConfigForm({
             </div>
             <div>
                 <label htmlFor={`${id}-depth`} className={labelCls}>Depth</label>
-                <input
+                <NumberInput
                     id={`${id}-depth`}
-                    type="text"
-                    inputMode="decimal"
-                    value={depth <= 0 ? '' : depth}
-                    onChange={(e) => onDepthChange(parseNum(e.target.value, 0))}
+                    allowDecimal
+                    hideZeroAsEmpty
+                    value={depth}
+                    onChange={(n) => onDepthChange(parseNum(n, 0))}
                     placeholder="e.g. 3"
                     className={inputCls}
                 />

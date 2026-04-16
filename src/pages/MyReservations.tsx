@@ -46,7 +46,7 @@ export default function MyReservations() {
                         className="flex items-center gap-2 text-[10px] tracking-[0.25em] text-[#94A3B8] uppercase hover:text-[#C6A664] transition-colors"
                     >
                         <ArrowLeft size={14} />
-                        Back
+                        Marketplace
                     </button>
                     <h1 className="font-serif-display text-xl tracking-tight">My Allocations</h1>
                 </div>

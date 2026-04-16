@@ -5,6 +5,8 @@ import { Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth.store';
 import { CurrencyInput } from './CurrencyInput';
 import AdminUnitFormBoxSize from './AdminUnitFormBoxSize';
+import CustomSelect from './CustomSelect';
+import NumberInput from './NumberInput';
 import type { Database } from '@/lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
@@ -24,9 +26,9 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
     const [displayName, setDisplayName] = useState(unit.display_name ?? '');
     const [floor, setFloor] = useState(unit.floor);
     const [price, setPrice] = useState<number | null>(unit.price != null ? Number(unit.price) : null);
-    const [areaSqm, setAreaSqm] = useState(unit.area_sqm ?? '');
-    const [bedrooms, setBedrooms] = useState(unit.bedrooms ?? '');
-    const [bathrooms, setBathrooms] = useState(unit.bathrooms ?? '');
+    const [areaSqm, setAreaSqm] = useState(() => (unit.area_sqm != null ? Number(unit.area_sqm) : 0));
+    const [bedrooms, setBedrooms] = useState(() => (unit.bedrooms != null ? Number(unit.bedrooms) : 0));
+    const [bathrooms, setBathrooms] = useState(() => (unit.bathrooms != null ? Number(unit.bathrooms) : 0));
     const [viewType, setViewType] = useState(unit.view_type ?? '');
     const [amenities, setAmenities] = useState(unit.amenities ?? '');
     const [perks, setPerks] = useState(unit.perks ?? '');
@@ -43,9 +45,9 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
         setDisplayName(unit.display_name ?? '');
         setFloor(unit.floor);
         setPrice(unit.price != null ? Number(unit.price) : null);
-        setAreaSqm(unit.area_sqm != null ? String(unit.area_sqm) : '');
-        setBedrooms(unit.bedrooms != null ? String(unit.bedrooms) : '');
-        setBathrooms(unit.bathrooms != null ? String(unit.bathrooms) : '');
+        setAreaSqm(unit.area_sqm != null ? Number(unit.area_sqm) : 0);
+        setBedrooms(unit.bedrooms != null ? Number(unit.bedrooms) : 0);
+        setBathrooms(unit.bathrooms != null ? Number(unit.bathrooms) : 0);
         setViewType(unit.view_type ?? '');
         setAmenities(unit.amenities ?? '');
         setPerks(unit.perks ?? '');
@@ -65,9 +67,9 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
             display_name: displayName.trim() || null,
             floor: Number(floor) || 1,
             price: price,
-            area_sqm: areaSqm ? Number(areaSqm) : null,
-            bedrooms: bedrooms ? Number(bedrooms) : null,
-            bathrooms: bathrooms ? Number(bathrooms) : null,
+            area_sqm: areaSqm === 0 ? null : areaSqm,
+            bedrooms: unit.bedrooms == null && bedrooms === 0 ? null : bedrooms,
+            bathrooms: unit.bathrooms == null && bathrooms === 0 ? null : bathrooms,
             view_type: viewType.trim() || null,
             amenities: amenities.trim() || null,
             perks: perks.trim() || null,
@@ -125,11 +127,10 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
             <div className="grid grid-cols-2 gap-3">
                 <div>
                     <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Floor</label>
-                    <input
-                        type="number"
+                    <NumberInput
                         min={1}
                         value={floor}
-                        onChange={(e) => setFloor(Number(e.target.value) || 1)}
+                        onChange={setFloor}
                         className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA]"
                     />
                 </div>
@@ -145,48 +146,49 @@ export default function AdminUnitForm({ unit, onSaved, onError }: AdminUnitFormP
             <div className="grid grid-cols-3 gap-2">
                 <div>
                     <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Area (m²)</label>
-                    <input
-                        type="number"
+                    <NumberInput
+                        allowDecimal
                         min={0}
-                        step={0.1}
                         value={areaSqm}
-                        onChange={(e) => setAreaSqm(e.target.value)}
+                        onChange={setAreaSqm}
+                        hideZeroAsEmpty
                         className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA]"
                     />
                 </div>
                 <div>
                     <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Beds</label>
-                    <input
-                        type="number"
+                    <NumberInput
                         min={0}
                         value={bedrooms}
-                        onChange={(e) => setBedrooms(e.target.value)}
+                        onChange={setBedrooms}
+                        hideZeroAsEmpty
                         className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA]"
                     />
                 </div>
                 <div>
                     <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Baths</label>
-                    <input
-                        type="number"
+                    <NumberInput
                         min={0}
                         value={bathrooms}
-                        onChange={(e) => setBathrooms(e.target.value)}
+                        onChange={setBathrooms}
+                        hideZeroAsEmpty
                         className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA]"
                     />
                 </div>
             </div>
             <div>
                 <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">View</label>
-                <select
+                <CustomSelect
                     value={viewType || ''}
-                    onChange={(e) => setViewType(e.target.value)}
-                    className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA]"
-                >
-                    <option value="">Select view</option>
-                    {VIEW_OPTIONS.map((v) => (
-                        <option key={v} value={v}>{v}</option>
-                    ))}
-                </select>
+                    onChange={setViewType}
+                    placeholder="Select view"
+                    options={[
+                        { value: '', label: 'Select view' },
+                        ...VIEW_OPTIONS.map((v) => ({ value: v, label: v })),
+                    ]}
+                    className="w-full"
+                    buttonClassName="py-2.5 text-sm"
+                />
             </div>
             <div>
                 <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Amenities</label>

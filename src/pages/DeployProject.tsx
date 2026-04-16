@@ -13,8 +13,11 @@ import { useAuthStore } from '@/store/auth.store';
 import { ModelLoader } from '@/engine/components/BuildingModel';
 import { generateProjectDetails } from '@/lib/ai';
 import { CurrencyInput } from '@/components/CurrencyInput';
+import CustomSelect from '@/components/CustomSelect';
 import SkyboxSelector from '@/components/SkyboxSelector';
-import type { SkyboxRow } from '@/lib/skybox';
+import type { SkyboxCollectionWithSlots } from '@/lib/skyboxCollections';
+import { orderedSlots } from '@/lib/skyboxEnvResolve';
+import { fetchWorldEnvironments, type WorldEnvironmentWithSky } from '@/lib/worldEnvironments';
 import { formatCentsToCurrency } from '@/lib/currency';
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
@@ -33,7 +36,9 @@ export default function DeployProject() {
     const [heroUrl, setHeroUrl] = useState('');
     const [storeUrl, setStoreUrl] = useState('');
     const [description, setDescription] = useState('');
-    const [selectedSkybox, setSelectedSkybox] = useState<SkyboxRow | null>(null);
+    const [selectedSkybox, setSelectedSkybox] = useState<SkyboxCollectionWithSlots | null>(null);
+    const [worldEnvironmentList, setWorldEnvironmentList] = useState<WorldEnvironmentWithSky[]>([]);
+    const [selectedWorldEnvironmentId, setSelectedWorldEnvironmentId] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
 
     const [file, setFile] = useState<File | null>(null);
@@ -64,6 +69,11 @@ export default function DeployProject() {
             if (previewUrl) URL.revokeObjectURL(previewUrl);
         };
     }, [previewUrl]);
+
+    useEffect(() => {
+        const token = () => useAuthStore.getState().session?.access_token ?? undefined;
+        fetchWorldEnvironments(token).then(setWorldEnvironmentList);
+    }, []);
 
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -172,7 +182,13 @@ export default function DeployProject() {
                     description: description ?? undefined,
                     store_url: storeUrl || undefined,
                     model_url: modelPublicUrl,
-                    generated_env_url: selectedSkybox?.file_url ?? undefined,
+                    world_environment_id: selectedWorldEnvironmentId || undefined,
+                    generated_env_url: selectedWorldEnvironmentId
+                        ? undefined
+                        : (() => {
+                              const slots = orderedSlots(selectedSkybox?.skybox_collection_slots ?? null);
+                              return slots[0]?.file_url ?? undefined;
+                          })(),
                     total_units: 5
                 })
             });
@@ -222,7 +238,7 @@ export default function DeployProject() {
                     className="flex items-center gap-2 text-[#94A3B8] hover:text-[#C6A664] text-[10px] tracking-widest uppercase transition-colors group"
                 >
                     <ArrowRight size={13} className="group-hover:-translate-x-1 transition-transform rotate-180" />
-                    Back to Command Center
+                    Marketplace
                 </button>
                 <div className="font-serif-display text-sm tracking-[0.25em] text-[#F5F7FA]">MYXELLIA</div>
             </div>
@@ -323,10 +339,28 @@ export default function DeployProject() {
                                     <div>
                                         <label className={labelCls}>
                                             <Sparkles size={10} className="inline mr-1.5" />
-                                            Skybox environment
+                                            Sky collection (HDR)
                                         </label>
                                         <SkyboxSelector selectedId={selectedSkybox?.id ?? null} onSelect={setSelectedSkybox} className="mt-2" />
                                     </div>
+                                    {worldEnvironmentList.length > 0 && (
+                                        <div>
+                                            <label className={labelCls}>World environment <span className="text-[#94A3B8]/40 normal-case">(optional)</span></label>
+                                            <p className="text-[11px] text-[#94A3B8]/80 mb-2">Ground mesh + HDR bundle. When set, overrides sky-only default for the new project.</p>
+                                            <CustomSelect
+                                                value={selectedWorldEnvironmentId}
+                                                onChange={setSelectedWorldEnvironmentId}
+                                                placeholder="None — use skybox only"
+                                                className="w-full"
+                                                buttonClassName={`${inputCls} cursor-pointer`}
+                                                buttonStyle={{ borderColor: 'rgba(255,255,255,0.1)' }}
+                                                options={[
+                                                    { value: '', label: 'None — use skybox only' },
+                                                    ...worldEnvironmentList.map((w) => ({ value: w.id, label: w.label })),
+                                                ]}
+                                            />
+                                        </div>
+                                    )}
                                     <button type="submit" className="w-full py-4 rounded-xl font-semibold text-[12px] tracking-[0.2em] uppercase hover:opacity-90 transition-all" style={{ background: 'linear-gradient(135deg, #C6A664, #D4BA82)', color: '#0A0A0B' }}>
                                         Continue → Upload Model
                                     </button>
@@ -431,7 +465,17 @@ export default function DeployProject() {
                                         <div><span className="text-[#94A3B8]">Price: </span><span className="text-[#F5F7FA]">{price ? formatCentsToCurrency(price) : 'N/A'}</span></div>
                                         <div className="col-span-2"><span className="text-[#94A3B8]">Location: </span><span className="text-[#F5F7FA]">{location}</span></div>
                                         {storeUrl && <div className="col-span-2 truncate"><span className="text-[#94A3B8]">Store: </span><span className="text-[#C6A664]">{storeUrl}</span></div>}
-                                        {selectedSkybox && <div className="col-span-2"><span className="text-[#94A3B8]">Skybox: </span><span className="text-[#C6A664]">{selectedSkybox.label}</span></div>}
+                                        {selectedWorldEnvironmentId && (
+                                            <div className="col-span-2">
+                                                <span className="text-[#94A3B8]">World env: </span>
+                                                <span className="text-[#C6A664]">
+                                                    {worldEnvironmentList.find((w) => w.id === selectedWorldEnvironmentId)?.label ?? selectedWorldEnvironmentId}
+                                                </span>
+                                            </div>
+                                        )}
+                                        {selectedSkybox && !selectedWorldEnvironmentId && (
+                                            <div className="col-span-2"><span className="text-[#94A3B8]">Skybox: </span><span className="text-[#C6A664]">{selectedSkybox.label}</span></div>
+                                        )}
                                     </div>
                                 </div>
 

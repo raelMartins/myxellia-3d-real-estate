@@ -26,6 +26,8 @@ const STATUS_EMISSIVE: Record<string, string> = {
 };
 
 const GROUND_Y = -0.9;
+/** Pixels of pointer movement before a press counts as a drag (preserves double-click for interior). */
+const DRAG_THRESHOLD_PX = 6;
 
 type R3FPointerEvent = { stopPropagation: () => void; intersections: Array<{ point: THREE.Vector3 }>; nativeEvent?: PointerEvent & { pointerId?: number } };
 
@@ -97,6 +99,7 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
 
     const onPointerDown = (e: R3FPointerEvent) => {
         if (!isAdmin || !unitPositionHandler) return;
+        if (!isSelected) return;
         e.stopPropagation();
         const ne = e.nativeEvent;
         if (ne) {
@@ -107,19 +110,17 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
         if (!hit || !groupRef.current) return;
         const el = gl.domElement;
         const pointerId = e.nativeEvent?.pointerId ?? 0;
+        const startClientX = ne?.clientX ?? 0;
+        const startClientY = ne?.clientY ?? 0;
+        let dragCommitted = false;
         groupRef.current.getWorldPosition(groupWorldPosRef.current);
         offsetRef.current.copy(hit).sub(groupWorldPosRef.current);
         camera.getWorldDirection(cameraDirRef.current);
         planeRef.current.setFromNormalAndCoplanarPoint(cameraDirRef.current, hit);
         dragPositionRef.current = unit.position;
-        setDragPosition(unit.position);
-        setIsDragging(true);
-        document.body.style.cursor = 'grabbing';
         el.setPointerCapture(pointerId);
 
-        const onMove = (ev: PointerEvent) => {
-            ev.preventDefault();
-            ev.stopImmediatePropagation();
+        const applyPlaneDrag = (ev: PointerEvent) => {
             const rect = el.getBoundingClientRect();
             pointerRef.current.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
             pointerRef.current.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
@@ -141,6 +142,21 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
                 if (!overlapsOther) dragPositionRef.current = candidate;
             }
         };
+
+        const onMove = (ev: PointerEvent) => {
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            if (!dragCommitted) {
+                const dx = ev.clientX - startClientX;
+                const dy = ev.clientY - startClientY;
+                if (dx * dx + dy * dy < DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) return;
+                dragCommitted = true;
+                setDragPosition([...dragPositionRef.current]);
+                setIsDragging(true);
+                document.body.style.cursor = 'grabbing';
+            }
+            applyPlaneDrag(ev);
+        };
         const onUp = (ev: PointerEvent) => {
             ev.preventDefault();
             ev.stopImmediatePropagation();
@@ -148,11 +164,13 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
             el.removeEventListener('pointerup', onUp, true);
             el.releasePointerCapture(pointerId);
             document.body.style.cursor = 'auto';
-            dragJustEndedRef.current = true;
-            const finalPos = [...dragPositionRef.current] as [number, number, number];
-            unitPositionHandler(unit.id, finalPos)
-                .then(() => setIsDragging(false))
-                .catch(() => setIsDragging(false));
+            if (dragCommitted) {
+                dragJustEndedRef.current = true;
+                const finalPos = [...dragPositionRef.current] as [number, number, number];
+                unitPositionHandler(unit.id, finalPos)
+                    .then(() => setIsDragging(false))
+                    .catch(() => setIsDragging(false));
+            }
         };
         el.addEventListener('pointermove', onMove, true);
         el.addEventListener('pointerup', onUp, true);
@@ -183,7 +201,7 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
                 scale={[scale, scale, scale]}
                 onClick={handleClick}
                 onPointerDown={onPointerDown}
-                onPointerOver={(e: R3FPointerEvent) => { e.stopPropagation(); setHoveredUnit(unit.id); if (!isDragging && !isResizing) document.body.style.cursor = isAdmin ? 'grab' : 'pointer'; }}
+                onPointerOver={(e: R3FPointerEvent) => { e.stopPropagation(); setHoveredUnit(unit.id); if (!isDragging && !isResizing) document.body.style.cursor = isAdmin && isSelected ? 'grab' : 'pointer'; }}
                 onPointerOut={() => { setHoveredUnit(null); if (!isDragging && !isResizing) document.body.style.cursor = 'auto'; }}
                 castShadow
                 receiveShadow

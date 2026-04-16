@@ -6,9 +6,7 @@ import * as THREE from 'three';
 import { useEngineStore } from '@/engine/store/engine.store';
 import { useAuthStore } from '@/store/auth.store';
 import { boxesOverlap, parseUnitPosition, parseUnitSize } from '@/engine/lib/unitBoxOverlap';
-import UnitBoxCornerHandles from './UnitBoxCornerHandles';
 import UnitPrismRotateButtons from './UnitPrismRotateButtons';
-import type { UnitMesh } from './UnitBox';
 
 export interface UnitPrismMesh {
     id: string;
@@ -29,6 +27,8 @@ const STATUS_EMISSIVE: Record<string, string> = {
     sold: '#6A0000',
 };
 const GROUND_Y = -0.9;
+/** Pixels of pointer movement before a press counts as a drag (preserves double-click for interior). */
+const DRAG_THRESHOLD_PX = 6;
 type R3FPointerEvent = { stopPropagation: () => void; intersections: Array<{ point: THREE.Vector3 }>; nativeEvent?: PointerEvent & { pointerId?: number } };
 
 export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismMesh; allowDrag?: boolean }) {
@@ -43,7 +43,6 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
         setHoveredUnit,
         setViewMode,
         unitPositionHandler,
-        unitSizeHandler,
         unitRotationHandler,
     } = useEngineStore();
     const isAdmin = useAuthStore((s) => s.profile?.role === 'admin');
@@ -53,10 +52,6 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
 
     const [isDragging, setIsDragging] = useState(false);
     const [dragPosition, setDragPosition] = useState<[number, number, number]>(unit.position);
-    const [isResizing, setIsResizing] = useState(false);
-    const [resizeSize, setResizeSize] = useState<[number, number, number]>(unit.size);
-    const [resizePosition, setResizePosition] = useState<[number, number, number]>(unit.position);
-    const [isIndicatorHovered, setIsIndicatorHovered] = useState(false);
     const dragPositionRef = useRef<[number, number, number]>(unit.position);
     const dragJustEndedRef = useRef(false);
     const offsetRef = useRef(new THREE.Vector3());
@@ -68,8 +63,8 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
     const raycasterRef = useRef(new THREE.Raycaster());
     const pointerRef = useRef(new THREE.Vector2());
 
-    const displayPos = isDragging ? dragPosition : isResizing ? resizePosition : unit.position;
-    const displaySize = isResizing ? resizeSize : unit.size;
+    const displayPos = isDragging ? dragPosition : unit.position;
+    const displaySize = unit.size;
     const [width, height, depth] = displaySize;
 
     const geometry = useMemo(() => {
@@ -97,7 +92,7 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
         if (!meshRef.current) return;
         if (isDragging) {
             setDragPosition([...dragPositionRef.current]);
-        } else if (!isResizing) {
+        } else {
             const mat = meshRef.current.material as THREE.MeshStandardMaterial;
             if (status === 'pending') {
                 const pulse = Math.sin(clock.elapsedTime * 3) * 0.5 + 0.5;
@@ -129,6 +124,7 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
     const canEdit = allowDrag && isAdmin && !!unitPositionHandler;
     const onPointerDown = useCallback((e: R3FPointerEvent) => {
         if (!canEdit) return;
+        if (!isSelected) return;
         e.stopPropagation();
         const ne = e.nativeEvent;
         if (ne) {
@@ -139,19 +135,17 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
         if (!hit || !groupRef.current) return;
         const el = gl.domElement;
         const pointerId = (e as unknown as { nativeEvent?: { pointerId: number } }).nativeEvent?.pointerId ?? 0;
+        const startClientX = ne?.clientX ?? 0;
+        const startClientY = ne?.clientY ?? 0;
+        let dragCommitted = false;
         groupRef.current.getWorldPosition(groupWorldPosRef.current);
         offsetRef.current.copy(hit).sub(groupWorldPosRef.current);
         camera.getWorldDirection(cameraDirRef.current);
         planeRef.current.setFromNormalAndCoplanarPoint(cameraDirRef.current, hit);
         dragPositionRef.current = unit.position;
-        setDragPosition(unit.position);
-        setIsDragging(true);
-        document.body.style.cursor = 'grabbing';
         el.setPointerCapture(pointerId);
 
-        const onMove = (ev: PointerEvent) => {
-            ev.preventDefault();
-            ev.stopImmediatePropagation();
+        const applyPlaneDrag = (ev: PointerEvent) => {
             const rect = el.getBoundingClientRect();
             pointerRef.current.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
             pointerRef.current.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
@@ -173,6 +167,21 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
                 if (!overlapsOther) dragPositionRef.current = candidate;
             }
         };
+
+        const onMove = (ev: PointerEvent) => {
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            if (!dragCommitted) {
+                const dx = ev.clientX - startClientX;
+                const dy = ev.clientY - startClientY;
+                if (dx * dx + dy * dy < DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) return;
+                dragCommitted = true;
+                setDragPosition([...dragPositionRef.current]);
+                setIsDragging(true);
+                document.body.style.cursor = 'grabbing';
+            }
+            applyPlaneDrag(ev);
+        };
         const onUp = (ev: PointerEvent) => {
             ev.preventDefault();
             ev.stopImmediatePropagation();
@@ -180,33 +189,20 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
             el.removeEventListener('pointerup', onUp, true);
             el.releasePointerCapture(pointerId);
             document.body.style.cursor = 'auto';
-            dragJustEndedRef.current = true;
-            const finalPos = [...dragPositionRef.current] as [number, number, number];
-            unitPositionHandler(unit.id, finalPos)
-                .then(() => setIsDragging(false))
-                .catch(() => setIsDragging(false));
+            if (dragCommitted) {
+                dragJustEndedRef.current = true;
+                const finalPos = [...dragPositionRef.current] as [number, number, number];
+                unitPositionHandler(unit.id, finalPos)
+                    .then(() => setIsDragging(false))
+                    .catch(() => setIsDragging(false));
+            }
         };
         el.addEventListener('pointermove', onMove, true);
         el.addEventListener('pointerup', onUp, true);
-    }, [canEdit, gl.domElement, camera, unit.id, unit.position, unit.size, storeUnits, unitPositionHandler]);
-    const showCornerHandles = (isHovered || isResizing || isIndicatorHovered) && allowDrag && isAdmin && !!unitSizeHandler && !isDragging;
-    const wouldOverlapOtherUnits = useCallback((center: [number, number, number], size: [number, number, number]) => (
-        storeUnits.some((u) => u.id !== unit.id && boxesOverlap(center, size, parseUnitPosition(u), parseUnitSize(u)))
-    ), [storeUnits, unit.id]);
-    const handleResizeEnd = useCallback(() => {
-        if (!unitSizeHandler || !unitPositionHandler) return;
-        const finalSize = [...resizeSize] as [number, number, number];
-        const finalPos = [...resizePosition] as [number, number, number];
-        Promise.all([
-            unitSizeHandler(unit.id, finalSize),
-            unitPositionHandler(unit.id, finalPos),
-        ]).finally(() => setIsResizing(false));
-    }, [unit.id, resizeSize, resizePosition, unitSizeHandler, unitPositionHandler]);
-
-    const boxMeshForHandles: UnitMesh = useMemo(() => ({ id: unit.id, position: unit.position, size: unit.size }), [unit.id, unit.position, unit.size]);
+    }, [canEdit, isSelected, gl.domElement, camera, unit.id, unit.position, unit.size, storeUnits, unitPositionHandler]);
     const scale = isSelected ? 1.05 : isHovered ? 1.03 : 1;
     const rotationY = unit.rotation ?? 0;
-    const showRotate = isSelected && allowDrag && isAdmin && !!unitRotationHandler && !isDragging && !isResizing;
+    const showRotate = isSelected && allowDrag && isAdmin && !!unitRotationHandler && !isDragging;
     return (
         <group ref={groupRef} position={displayPos} rotation={[0, rotationY, 0]}>
             <mesh
@@ -218,11 +214,11 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
                 onPointerOver={(e: R3FPointerEvent) => {
                     e.stopPropagation();
                     setHoveredUnit(unit.id);
-                    if (!isDragging && !isResizing) document.body.style.cursor = canEdit ? 'grab' : 'pointer';
+                    if (!isDragging) document.body.style.cursor = canEdit && isSelected ? 'grab' : 'pointer';
                 }}
                 onPointerOut={() => {
                     setHoveredUnit(null);
-                    if (!isDragging && !isResizing) document.body.style.cursor = 'auto';
+                    if (!isDragging) document.body.style.cursor = 'auto';
                 }}
                 castShadow
                 receiveShadow
@@ -237,20 +233,6 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
                     opacity={isSelected ? 0.55 : 0.4}
                 />
             </mesh>
-            <UnitBoxCornerHandles
-                unit={boxMeshForHandles}
-                displaySize={displaySize}
-                displayPosition={displayPos}
-                visible={showCornerHandles}
-                wouldOverlapOtherUnits={wouldOverlapOtherUnits}
-                onIndicatorHoverChange={setIsIndicatorHovered}
-                onResize={(size, pos) => {
-                    setIsResizing(true);
-                    setResizeSize(size);
-                    setResizePosition(pos);
-                }}
-                onResizeEnd={handleResizeEnd}
-            />
             <UnitPrismRotateButtons visible={showRotate} height={displaySize[1]} onRotate={(d) => unitRotationHandler?.(unit.id, rotationY + d)} />
         </group>
     );

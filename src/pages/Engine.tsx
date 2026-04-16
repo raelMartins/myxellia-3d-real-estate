@@ -1,51 +1,69 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Sunset, Moon, BellRing, Sparkles, Loader2 } from 'lucide-react';
+import { BellRing } from 'lucide-react';
 import { ErrorBoundary, type FallbackProps } from 'react-error-boundary';
 import MyxelliaCanvas from '@/engine/components/MyxelliaCanvas';
+import PadMarqueeOverlay from '@/engine/components/PadMarqueeOverlay';
 import EngineSidebar from '@/components/EngineSidebar';
 import EngineInteriorView from '@/engine/components/EngineInteriorView';
-import SuggestUnitsModal from '@/components/SuggestUnitsModal';
 import InteriorUploadModal from '@/components/InteriorUploadModal';
 import type { UnitIdentityValues } from '@/components/UnitIdentityForm';
 import type { GeometryData } from '@/components/UnitGeometryStep';
 import type { UnitCreateResult } from '@/components/AddUnitsModal';
 import BuildingPlanModal from '@/components/BuildingPlanModal';
 import type { BuildingPlanApplyPayload } from '@/components/BuildingPlanModal';
-import { slotToUnitGeometry } from '@/lib/sectionPlanUnits';
+import { slotToUnitGeometry, slotYExtent } from '@/lib/sectionPlanUnits';
 import EngineViewControls from '@/engine/components/EngineViewControls';
-import EngineContextCard from '@/components/EngineContextCard';
-import SetDefaultSkyboxButton from '@/components/SetDefaultSkyboxButton';
+import EngineRightPanel from '@/components/EngineRightPanel';
 import { useEngineStore } from '@/engine/store/engine.store';
 import { useAuthStore } from '@/store/auth.store';
 import { createReservation } from '@/lib/reservations';
-import { suggestUnits, type UnitSuggestion } from '@/lib/ai';
-import { fetchSkyboxEnvironments } from '@/lib/skybox';
+import {
+    fetchSkyboxCollections,
+    createCollectionWithHdrFiles,
+} from '@/lib/skyboxCollections';
+import { orderedSlots, resolveExteriorHdriUrl } from '@/lib/skyboxEnvResolve';
+import {
+    fetchWorldEnvironments,
+    fetchWorldEnvironmentById,
+    patchWorldEnvironmentSkyCollection,
+    patchWorldEnvironmentSurroundSelection,
+    type WorldEnvironmentWithSky,
+} from '@/lib/worldEnvironments';
+import { fetchSurroundCatalogAssets } from '@/lib/surroundCatalog';
+import type { SurroundCatalogAssetRow } from '@/lib/database.types';
+import { pickEffectiveWorldEnvironment } from '@/lib/pickEffectiveWorldEnvironment';
 import type { Database } from '@/lib/database.types';
 import type { InteriorHotspot } from '@/lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
 const ease = [0.2, 0.8, 0.2, 1] as const;
 type LightingMode = 'morning' | 'golden' | 'night';
-const LIGHTING_OPTS: { mode: LightingMode; icon: typeof Sun; label: string }[] = [
-    { mode: 'morning', icon: Sun, label: 'Morning' },
-    { mode: 'golden', icon: Sunset, label: 'Golden Hour' },
-    { mode: 'night', icon: Moon, label: 'Night' },
-];
+
+function worldHasBundledSky(w: WorldEnvironmentWithSky | null | undefined): boolean {
+    if (!w) return false;
+    const slots = w.skybox_collections?.skybox_collection_slots;
+    if (w.skybox_collection_id && Array.isArray(slots) && slots.length > 0) return true;
+    if (w.skybox_environment_id && w.skybox_environments?.file_url?.trim()) return true;
+    return false;
+}
 
 function EngineErrorFallback({ resetErrorBoundary }: FallbackProps) {
     const router = useRouter();
     const params = useParams();
     const buildingId = (params?.buildingId as string | undefined) ?? undefined;
+    const worldId = (params?.worldId as string | undefined) ?? undefined;
+    const backHref = worldId ? '/world-environments' : buildingId ? `/detail/${buildingId}` : '/';
+    const backLabel = worldId ? 'World environments' : buildingId ? 'Back to Summary' : 'Marketplace';
     return (
         <div className="w-screen h-screen bg-[#0A0A0B] flex flex-col items-center justify-center gap-6 p-8">
             <p className="text-red-400/90 text-sm text-center max-w-md">Something went wrong loading the engine.</p>
             <div className="flex gap-4">
                 <button onClick={resetErrorBoundary} className="px-4 py-2 rounded-lg bg-white/10 text-[#F5F7FA] text-xs uppercase tracking-wider">Try again</button>
-                <button onClick={() => router.push(buildingId ? `/detail/${buildingId}` : '/')} className="px-4 py-2 rounded-lg bg-[#C6A664]/20 text-[#C6A664] text-xs uppercase tracking-wider">Back to project</button>
+                <button onClick={() => router.push(backHref)} className="px-4 py-2 rounded-lg bg-[#C6A664]/20 text-[#C6A664] text-xs uppercase tracking-wider">{backLabel}</button>
             </div>
         </div>
     );
@@ -54,41 +72,56 @@ function EngineErrorFallback({ resetErrorBoundary }: FallbackProps) {
 export default function Engine() {
     const params = useParams();
     const buildingId = (params?.buildingId as string | undefined) ?? undefined;
+    const worldPreviewId = (params?.worldId as string | undefined) ?? undefined;
     const searchParams = useSearchParams();
     const focusUnitIdFromUrl = searchParams?.get('unitId') ?? null;
 
     const {
         building, units, loading,
         selectedUnit, viewMode, lightingMode, unitStatuses, notification,
-        skyboxEnvironments, selectedSkyboxUrl, modelBoundsXZ, focusUnitId,
+        skyboxCollections, selectedSkyboxUrl, selectedCatalogCollectionId, selectedSkyboxSlotId,
+        modelBoundsXZ, focusUnitId,
+        worldEnvironments, buildingWorldEnvironment, selectedWorldEnvironmentId,
         fetchBuilding, fetchUnits, setSelectedUnit, setViewMode, setLightingMode,
-        setUnitStatus, setNotification, requestScreenshot, setUnitPositionHandler, setUnitSizeHandler, setUnitRotationHandler,
-        setSkyboxEnvironments, setSelectedSkyboxUrl, setFocusUnitId,
+        setUnitStatus, setNotification, setUnitPositionHandler, setUnitSizeHandler, setUnitRotationHandler,
+        setSkyboxCollections, setSelectedSkyboxUrl, setSelectedCatalogCollectionId, setSelectedSkyboxSlotId,
+        setWorldEnvironments, setSelectedWorldEnvironmentId, setFocusUnitId,
+        setBuildingWorldEnvironment,
         resetEngine,
+        placementPad, placementPadDirty, placementPadEditActive,
+        togglePlacementPadEdit, setPadDisplayMode, setPlacementPadBuildingYaw, saveGroundPlacementPad, clearGroundPlacementPad,
+        worldPreviewActive, loadWorldPreview,
     } = useEngineStore();
 
-    const [suggestModalOpen, setSuggestModalOpen] = useState(false);
-    const [suggestLoading, setSuggestLoading] = useState(false);
-    const [suggestError, setSuggestError] = useState<string | null>(null);
-    const [suggestions, setSuggestions] = useState<UnitSuggestion[]>([]);
-    const [confirmed, setConfirmed] = useState<Set<number>>(new Set());
-    const [saving, setSaving] = useState(false);
     const [unitFormError, setUnitFormError] = useState<string | null>(null);
     const [interiorModalOpen, setInteriorModalOpen] = useState(false);
     const [interiorAddedPopup, setInteriorAddedPopup] = useState<{ unitId: string } | null>(null);
     const [buildingPlanModalOpen, setBuildingPlanModalOpen] = useState(false);
+    const [padSaving, setPadSaving] = useState(false);
+    const [worldPreviewSkyboxUploading, setWorldPreviewSkyboxUploading] = useState(false);
+    const [surroundCatalogAssets, setSurroundCatalogAssets] = useState<SurroundCatalogAssetRow[]>([]);
+    const [surroundSaving, setSurroundSaving] = useState(false);
 
     const { profile, user } = useAuthStore();
     const isAdmin = profile?.role === 'admin';
 
     useEffect(() => {
+        if (worldPreviewId) {
+            setFocusUnitId(null);
+            void loadWorldPreview(worldPreviewId);
+            return () => {
+                resetEngine();
+            };
+        }
         if (buildingId) {
             setFocusUnitId(focusUnitIdFromUrl);
             fetchBuilding(buildingId);
             fetchUnits(buildingId);
         }
-        return () => { resetEngine(); };
-    }, [buildingId, focusUnitIdFromUrl, fetchBuilding, fetchUnits, resetEngine, setFocusUnitId]);
+        return () => {
+            resetEngine();
+        };
+    }, [worldPreviewId, buildingId, focusUnitIdFromUrl, fetchBuilding, fetchUnits, resetEngine, setFocusUnitId, loadWorldPreview]);
 
     useEffect(() => {
         if (!focusUnitIdFromUrl || units.length === 0) return;
@@ -99,16 +132,45 @@ export default function Engine() {
     }, [focusUnitIdFromUrl, units, setSelectedUnit]);
     useEffect(() => {
         const token = () => useAuthStore.getState().session?.access_token ?? undefined;
-        fetchSkyboxEnvironments(token).then(setSkyboxEnvironments);
-    }, [setSkyboxEnvironments]);
+        fetchSkyboxCollections(token).then(setSkyboxCollections);
+    }, [setSkyboxCollections]);
     useEffect(() => {
-        if (building?.id) setSelectedSkyboxUrl(building.generated_env_url ?? null);
-    }, [building?.id, setSelectedSkyboxUrl]);
+        const token = () => useAuthStore.getState().session?.access_token ?? undefined;
+        fetchWorldEnvironments(token).then(setWorldEnvironments);
+    }, [setWorldEnvironments]);
+    useEffect(() => {
+        const getToken = () => useAuthStore.getState().session?.access_token ?? undefined;
+        void fetchSurroundCatalogAssets(getToken).then(setSurroundCatalogAssets);
+    }, []);
+
+    useEffect(() => {
+        if (!building?.id || worldPreviewActive) return;
+        setSelectedWorldEnvironmentId(null);
+    }, [building?.id, worldPreviewActive, setSelectedWorldEnvironmentId]);
+
+    useEffect(() => {
+        if (worldPreviewActive) return;
+        if (!building?.id) return;
+        setSelectedSkyboxSlotId(null);
+        setSelectedCatalogCollectionId(null);
+        setSelectedSkyboxUrl(null);
+    }, [
+        building?.id,
+        buildingWorldEnvironment?.id,
+        worldPreviewActive,
+        setSelectedSkyboxSlotId,
+        setSelectedCatalogCollectionId,
+        setSelectedSkyboxUrl,
+    ]);
     useEffect(() => {
         if (!notification) return;
         const t = setTimeout(() => setNotification(null), 5000);
         return () => clearTimeout(t);
     }, [notification, setNotification]);
+
+    useEffect(() => {
+        if (worldPreviewActive && viewMode !== 'exterior') setViewMode('exterior');
+    }, [worldPreviewActive, viewMode, setViewMode]);
     const floors = useMemo(() => {
         const groups: Record<string, UnitRow[]> = {};
         units.forEach((u: UnitRow) => {
@@ -122,6 +184,206 @@ export default function Engine() {
             units: floorUnits
         })).sort((a, b) => b.name.localeCompare(a.name));
     }, [units]);
+
+    const effectiveWorldForUi = useMemo(
+        () =>
+            pickEffectiveWorldEnvironment(selectedWorldEnvironmentId, buildingWorldEnvironment, worldEnvironments),
+        [buildingWorldEnvironment, selectedWorldEnvironmentId, worldEnvironments]
+    );
+
+    const hideSkyboxCatalog = !worldPreviewActive && worldHasBundledSky(effectiveWorldForUi);
+
+    const exteriorHdriResolve = useMemo(
+        () =>
+            resolveExteriorHdriUrl({
+                skyNone: selectedSkyboxUrl === '__none__',
+                effectiveWorld: effectiveWorldForUi,
+                selectedSkyboxSlotId,
+                catalogCollectionId: selectedCatalogCollectionId,
+                skyboxCollections,
+                buildingGeneratedEnvUrl: building?.generated_env_url,
+            }),
+        [
+            selectedSkyboxUrl,
+            effectiveWorldForUi,
+            selectedSkyboxSlotId,
+            selectedCatalogCollectionId,
+            skyboxCollections,
+            building?.generated_env_url,
+        ]
+    );
+
+    const skySlotPicker = useMemo(() => {
+        const w = effectiveWorldForUi;
+        const fromWorld = w?.skybox_collections?.skybox_collection_slots;
+        if (w?.skybox_collection_id && Array.isArray(fromWorld) && fromWorld.length > 0) {
+            return { slots: orderedSlots(fromWorld), showPicker: true as const };
+        }
+        if (selectedCatalogCollectionId) {
+            const c = skyboxCollections.find((x) => x.id === selectedCatalogCollectionId);
+            const s = c?.skybox_collection_slots;
+            if (Array.isArray(s) && s.length > 0) {
+                return { slots: orderedSlots(s), showPicker: true as const };
+            }
+        }
+        return { slots: [] as ReturnType<typeof orderedSlots>, showPicker: false as const };
+    }, [effectiveWorldForUi, selectedCatalogCollectionId, skyboxCollections]);
+    const showWorldEnvControls = worldEnvironments.length > 0 || !!buildingWorldEnvironment;
+
+    const groundUrl = effectiveWorldForUi?.ground_model_url?.trim() ?? '';
+    const hasGroundMesh = !!groundUrl;
+    const showSurroundFill =
+        hasGroundMesh &&
+        !!effectiveWorldForUi?.id &&
+        (worldPreviewActive || showWorldEnvControls);
+
+    const buildingOrientationDeg = useMemo(
+        () => Math.round(((placementPad?.buildingYaw ?? 0) * 180) / Math.PI),
+        [placementPad?.buildingYaw]
+    );
+    const handleBuildingOrientationDeg = useCallback(
+        (deg: number) => {
+            setPlacementPadBuildingYaw((deg * Math.PI) / 180);
+        },
+        [setPlacementPadBuildingYaw]
+    );
+
+    const mergeRefreshedWorld = useCallback((refreshed: WorldEnvironmentWithSky) => {
+        setBuildingWorldEnvironment(refreshed);
+        const prev = useEngineStore.getState().worldEnvironments;
+        const idx = prev.findIndex((w) => w.id === refreshed.id);
+        const next = idx === -1 ? [refreshed, ...prev] : prev.map((w, i) => (i === idx ? refreshed : w));
+        setWorldEnvironments(next);
+    }, [setBuildingWorldEnvironment, setWorldEnvironments]);
+
+    const handleSurroundCatalogAssetChange = useCallback(
+        async (assetId: string | null) => {
+            const ew = pickEffectiveWorldEnvironment(
+                useEngineStore.getState().selectedWorldEnvironmentId,
+                useEngineStore.getState().buildingWorldEnvironment,
+                useEngineStore.getState().worldEnvironments
+            );
+            const wid = ew?.id;
+            if (!wid) return;
+            const getToken = () => useAuthStore.getState().session?.access_token ?? undefined;
+            if (!getToken()) {
+                setNotification('Sign in to update surround fill.');
+                return;
+            }
+            setSurroundSaving(true);
+            try {
+                if (assetId == null) {
+                    const updated = await patchWorldEnvironmentSurroundSelection(
+                        wid,
+                        { catalogAssetId: null, layoutMode: null },
+                        getToken
+                    );
+                    if (updated) mergeRefreshedWorld(updated);
+                    else setNotification('Could not clear surround fill.');
+                } else {
+                    const updated = await patchWorldEnvironmentSurroundSelection(
+                        wid,
+                        { catalogAssetId: assetId, layoutMode: null },
+                        getToken
+                    );
+                    if (updated) mergeRefreshedWorld(updated);
+                    else setNotification('Could not update surround prop.');
+                }
+            } finally {
+                setSurroundSaving(false);
+            }
+        },
+        [mergeRefreshedWorld, setNotification]
+    );
+
+    const handleSkyboxChange = useCallback(
+        async (v: string | null) => {
+            setSelectedSkyboxSlotId(null);
+            if (!worldPreviewActive || !worldPreviewId) {
+                if (v === '__none__') {
+                    setSelectedSkyboxUrl('__none__');
+                    setSelectedCatalogCollectionId(null);
+                } else if (v === '' || v == null) {
+                    setSelectedSkyboxUrl(null);
+                    setSelectedCatalogCollectionId(null);
+                } else {
+                    setSelectedSkyboxUrl(null);
+                    setSelectedCatalogCollectionId(v);
+                }
+                return;
+            }
+            const getToken = () => useAuthStore.getState().session?.access_token ?? undefined;
+            if (!getToken()) {
+                setNotification('Sign in to change the skybox.');
+                return;
+            }
+            let nextCollectionId: string | null = null;
+            if (v === '__none__') nextCollectionId = null;
+            else if (v === '' || v == null) nextCollectionId = null;
+            else nextCollectionId = v;
+
+            const ok = await patchWorldEnvironmentSkyCollection(worldPreviewId, nextCollectionId, getToken);
+            if (!ok) {
+                setNotification('Could not update world sky collection.');
+                return;
+            }
+            const refreshed = await fetchWorldEnvironmentById(worldPreviewId, getToken);
+            if (!refreshed) {
+                setNotification('Sky may be saved; refresh if the scene does not update.');
+                return;
+            }
+            mergeRefreshedWorld(refreshed);
+            setSelectedCatalogCollectionId(null);
+            if (v === '__none__') setSelectedSkyboxUrl('__none__');
+            else setSelectedSkyboxUrl(null);
+            setNotification('World sky updated.');
+        },
+        [
+            worldPreviewActive,
+            worldPreviewId,
+            mergeRefreshedWorld,
+            setSelectedSkyboxUrl,
+            setSelectedCatalogCollectionId,
+            setSelectedSkyboxSlotId,
+            setNotification,
+        ]
+    );
+
+    const handleWorldPreviewSkyboxUpload = useCallback(
+        async (file: File) => {
+            if (!worldPreviewId) return;
+            setWorldPreviewSkyboxUploading(true);
+            try {
+                const getToken = () => useAuthStore.getState().session?.access_token ?? undefined;
+                if (!getToken()) {
+                    setNotification('Sign in to upload a skybox.');
+                    return;
+                }
+                const stem = file.name.replace(/\.[^.]+$/, '').slice(0, 80);
+                const coll = await createCollectionWithHdrFiles(stem || 'Sky', [{ file, label: stem || 'Sky' }], getToken);
+                if (!coll) {
+                    setNotification('HDR upload failed.');
+                    return;
+                }
+                setSkyboxCollections([coll, ...useEngineStore.getState().skyboxCollections]);
+                const ok = await patchWorldEnvironmentSkyCollection(worldPreviewId, coll.id, getToken);
+                if (!ok) {
+                    setNotification('Uploaded HDR but could not attach it to this world.');
+                    return;
+                }
+                const refreshed = await fetchWorldEnvironmentById(worldPreviewId, getToken);
+                if (refreshed) {
+                    mergeRefreshedWorld(refreshed);
+                    setSelectedSkyboxUrl(null);
+                    setSelectedSkyboxSlotId(null);
+                }
+                setNotification('Sky uploaded and applied to this world.');
+            } finally {
+                setWorldPreviewSkyboxUploading(false);
+            }
+        },
+        [worldPreviewId, mergeRefreshedWorld, setSkyboxCollections, setSelectedSkyboxUrl, setSelectedSkyboxSlotId, setNotification]
+    );
 
     const selectedUnitData = units.find((u: UnitRow) => u.id === selectedUnit);
     const currentStatus = selectedUnit ? (unitStatuses[selectedUnit] ?? 'available') : null;
@@ -305,7 +567,7 @@ export default function Engine() {
     };
 
     useEffect(() => {
-        if (isAdmin) {
+        if (isAdmin && !worldPreviewActive) {
             setUnitPositionHandler(handleUpdateUnitPosition);
             setUnitSizeHandler(handleUpdateUnitSize);
             setUnitRotationHandler(handleUpdateUnitRotation);
@@ -319,93 +581,7 @@ export default function Engine() {
             setUnitSizeHandler(null);
             setUnitRotationHandler(null);
         };
-    }, [isAdmin, setUnitPositionHandler, setUnitSizeHandler, setUnitRotationHandler]);
-
-    const handleSuggestUnits = async () => {
-        if (!buildingId || !building) return;
-        setSuggestLoading(true);
-        setSuggestError(null);
-        setSuggestions([]);
-        setSuggestModalOpen(true);
-        try {
-            const dataUrl = await requestScreenshot();
-            const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
-            const { suggestions: list } = await suggestUnits(buildingId, [base64]);
-            setSuggestions(list || []);
-            setConfirmed(new Set((list || []).map((_, i) => i)));
-        } catch (e) {
-            setSuggestError(e instanceof Error ? e.message : 'Failed to get suggestions');
-        } finally {
-            setSuggestLoading(false);
-        }
-    };
-
-    const toggleConfirmed = (index: number) => {
-        setConfirmed((prev) => {
-            const next = new Set(prev);
-            if (next.has(index)) next.delete(index);
-            else next.add(index);
-            return next;
-        });
-    };
-
-    const handleSaveSuggestedUnits = async () => {
-        if (!buildingId || !building) return;
-        const toSave = suggestions.filter((_, i) => confirmed.has(i));
-        if (toSave.length === 0) {
-            setSuggestModalOpen(false);
-            return;
-        }
-        const existingNumbers = new Set(units.map((u: UnitRow) => u.unit_number));
-        const newSuggestions = toSave.filter((s) => !existingNumbers.has(s.label));
-        if (newSuggestions.length === 0) {
-            setSuggestError('All suggested unit numbers already exist. Uncheck duplicates or edit labels.');
-            return;
-        }
-        setSaving(true);
-        setSuggestError(null);
-        try {
-            const rawStartingPrice = (building as { starting_price?: string }).starting_price;
-            const defaultPrice = rawStartingPrice && !isNaN(Number(rawStartingPrice))
-                ? Number(rawStartingPrice)
-                : 120000000;
-            const rows: Database['public']['Tables']['units']['Insert'][] = newSuggestions.map((s) => ({
-                building_id: buildingId,
-                unit_number: s.label,
-                floor: s.floor,
-                price: defaultPrice,
-                status: 'available',
-                mesh_id: `u-${s.label}`,
-            }));
-            const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-            const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-            const token = useAuthStore.getState().session?.access_token;
-            if (!url || !key || !token) throw new Error('Missing Supabase config or session. Please sign in.');
-            const res = await fetch(`${url}/rest/v1/units`, {
-                method: 'POST',
-                headers: {
-                    'apikey': key,
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'return=representation'
-                },
-                body: JSON.stringify(rows)
-            });
-            if (!res.ok) {
-                const errText = await res.text();
-                throw new Error(errText || `Units insert failed: ${res.status}`);
-            }
-            await fetchUnits(buildingId);
-            setNotification(newSuggestions.length < toSave.length
-                ? `Added ${newSuggestions.length} new unit(s); ${toSave.length - newSuggestions.length} already existed.`
-                : `Added ${newSuggestions.length} unit(s). Confirm on the left.`);
-            setSuggestModalOpen(false);
-        } catch (e) {
-            setSuggestError(e instanceof Error ? e.message : 'Failed to save units');
-        } finally {
-            setSaving(false);
-        }
-    };
+    }, [isAdmin, worldPreviewActive, setUnitPositionHandler, setUnitSizeHandler, setUnitRotationHandler]);
 
     const handleCreateUnitFromModal = async (
         identity: UnitIdentityValues,
@@ -521,8 +697,9 @@ export default function Engine() {
         }
 
         const existingNumbers = new Set(units.map((u: UnitRow) => u.unit_number));
-        const unitNumberFor = (slot: (typeof newSlots)[0], _index: number) => {
-            const base = `${slot.sectionLabel.replace(/\s+/g, '-')}-${slot.floorIndex + 1}`;
+        const unitNumberFor = (slot: (typeof newSlots)[0], index: number) => {
+            const { yLo, yHi } = slotYExtent(slot);
+            const base = `${slot.sectionLabel.replace(/\s+/g, '-')}-y${Math.round(yLo)}-${Math.round(yHi)}-fl${slot.floorAnnotation}-${index}`;
             let name = base;
             let n = 0;
             while (existingNumbers.has(name)) {
@@ -542,7 +719,7 @@ export default function Engine() {
             const insert: Record<string, unknown> = {
                 building_id: buildingId,
                 unit_number: unitNumber,
-                floor: slot.floorIndex + 1,
+                floor: slot.floorAnnotation,
                 position,
                 size,
                 footprint,
@@ -578,7 +755,7 @@ export default function Engine() {
         setNotification(`Building plan applied. ${newSlots.length} unit(s) created.`);
     };
 
-    if (loading && !building) {
+    if (loading) {
         return (
             <div className="w-screen h-screen bg-[#0A0A0B] flex items-center justify-center">
                 <div className="text-[#C6A664] tracking-[0.4em] uppercase animate-pulse">Synchronizing Engine...</div>
@@ -609,6 +786,7 @@ export default function Engine() {
             <div className="absolute inset-0">
                 <div className="w-full h-full">
                     <MyxelliaCanvas />
+                    <PadMarqueeOverlay />
                 </div>
                 <AnimatePresence>
                     {viewMode === 'interior' && (
@@ -629,65 +807,6 @@ export default function Engine() {
                     )}
                 </AnimatePresence>
 
-                <div className="absolute top-8 right-8 flex flex-col items-end gap-6 z-30">
-                    {isAdmin && viewMode === 'exterior' && (
-                        <>
-                            <button onClick={handleSuggestUnits} disabled={suggestLoading} className="glass-heavy px-5 py-2.5 rounded-full border border-white/10 flex items-center gap-2 text-[10px] tracking-widest uppercase font-bold text-[#C6A664] hover:bg-[#C6A664]/10 transition-colors disabled:opacity-50">
-                                {suggestLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                                Suggest units (AI)
-                            </button>
-                            <button
-                                onClick={() => setBuildingPlanModalOpen(true)}
-                                className="glass-heavy px-5 py-2.5 rounded-full border border-white/10 flex items-center gap-2 text-[10px] tracking-widest uppercase font-bold text-[#C6A664] hover:bg-[#C6A664]/10 transition-colors"
-                            >
-                                {(building as { section_plan?: unknown })?.section_plan ? 'Update Building Plan' : 'Add Building Plan'}
-                            </button>
-                        </>
-                    )}
-                    {viewMode === 'exterior' && (
-                        <>
-                            {skyboxEnvironments.length > 0 && (
-                                <div className="glass-heavy px-3 py-2 rounded-full border border-white/10 shadow-2xl flex items-center gap-2">
-                                    <select
-                                        value={selectedSkyboxUrl ?? ''}
-                                        onChange={(e) => {
-                                            const v = e.target.value;
-                                            setSelectedSkyboxUrl(v === '' ? null : v);
-                                        }}
-                                        className="bg-transparent text-[10px] tracking-widest uppercase font-bold text-[#F5F7FA] focus:outline-none cursor-pointer max-w-[180px]"
-                                    >
-                                        <option value="">Default skybox</option>
-                                        <option value="__none__">No skybox</option>
-                                        {skyboxEnvironments.map((s) => (
-                                            <option key={s.id} value={s.file_url}>{s.label}</option>
-                                        ))}
-                                    </select>
-                                    {isAdmin && selectedSkyboxUrl && selectedSkyboxUrl !== '__none__' && buildingId && (
-                                        <SetDefaultSkyboxButton
-                                            buildingId={buildingId}
-                                            url={selectedSkyboxUrl}
-                                            onSaved={() => { if (buildingId) fetchBuilding(buildingId); setNotification('Default skybox updated.'); }}
-                                        />
-                                    )}
-                                </div>
-                            )}
-                            <div className="glass-heavy p-1.5 rounded-full border border-white/10 flex items-center gap-1 shadow-2xl">
-                                {LIGHTING_OPTS.map((opt) => {
-                                    const Icon = opt.icon;
-                                    const isActive = lightingMode === opt.mode;
-                                    return (
-                                        <button key={opt.mode} onClick={() => setLightingMode(opt.mode)} className={`relative flex items-center gap-2 px-5 py-2.5 rounded-full transition-all duration-500 ${isActive ? 'bg-[#C6A664] text-[#0A0A0B]' : 'text-[#94A3B8] hover:text-[#F5F7FA]'}`}>
-                                            <Icon size={14} className={isActive ? 'animate-none' : 'opacity-60'} />
-                                            <span className="text-[10px] tracking-widest uppercase font-bold">{opt.label}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                <SuggestUnitsModal open={suggestModalOpen} loading={suggestLoading} saving={saving} error={suggestError} suggestions={suggestions} confirmed={confirmed} onClose={() => !suggestLoading && !saving && setSuggestModalOpen(false)} onToggle={toggleConfirmed} onSave={handleSaveSuggestedUnits} />
                 <InteriorUploadModal
                     open={interiorModalOpen}
                     onClose={() => setInteriorModalOpen(false)}
@@ -696,8 +815,110 @@ export default function Engine() {
                     onError={setUnitFormError}
                 />
 
-                <EngineContextCard location={building?.location} />
                 <EngineViewControls />
+
+                <EngineRightPanel
+                    viewMode={viewMode}
+                    isAdmin={!!isAdmin}
+                    buildingId={buildingId}
+                    location={worldPreviewActive ? buildingWorldEnvironment?.label : building?.location}
+                    worldPreviewMode={worldPreviewActive}
+                    onOpenBuildingPlan={() => setBuildingPlanModalOpen(true)}
+                    hasSectionPlan={!!(building as { section_plan?: unknown })?.section_plan}
+                    showWorldEnvControls={showWorldEnvControls}
+                    hideSkyboxCatalog={hideSkyboxCatalog}
+                    worldEnvironments={worldEnvironments}
+                    buildingWorldEnvironment={buildingWorldEnvironment}
+                    selectedWorldEnvironmentId={selectedWorldEnvironmentId}
+                    onWorldEnvironmentChange={(v) => {
+                        setSelectedSkyboxSlotId(null);
+                        setSelectedCatalogCollectionId(null);
+                        if (v === '') {
+                            setSelectedWorldEnvironmentId(null);
+                            setSelectedSkyboxUrl(null);
+                        } else if (v === '__none__') {
+                            setSelectedWorldEnvironmentId('__none__');
+                            setSelectedSkyboxUrl(null);
+                        } else {
+                            setSelectedWorldEnvironmentId(v);
+                            setSelectedSkyboxUrl(null);
+                        }
+                    }}
+                    onWorldDefaultSaved={() => {
+                        if (buildingId) fetchBuilding(buildingId);
+                        setNotification('Default world environment updated.');
+                    }}
+                    skyboxCollections={skyboxCollections}
+                    selectedCatalogCollectionId={selectedCatalogCollectionId}
+                    selectedSkyboxSlotId={selectedSkyboxSlotId}
+                    onSkyboxSlotChange={setSelectedSkyboxSlotId}
+                    skySlotsForPicker={skySlotPicker.slots}
+                    showSkySlotPicker={skySlotPicker.showPicker}
+                    lightingFromHdriSlots={exteriorHdriResolve.fromCollectionSlots}
+                    resolvedHdriUrl={exteriorHdriResolve.url}
+                    selectedSkyboxUrl={selectedSkyboxUrl}
+                    onSkyboxChange={(v) => void handleSkyboxChange(v)}
+                    worldPreviewSkyboxUploading={worldPreviewSkyboxUploading}
+                    onWorldPreviewSkyboxFile={worldPreviewActive ? handleWorldPreviewSkyboxUpload : undefined}
+                    onSkyboxDefaultSaved={() => {
+                        if (buildingId) fetchBuilding(buildingId);
+                        setNotification('Default skybox updated.');
+                    }}
+                    lightingMode={lightingMode}
+                    onLightingMode={setLightingMode}
+                    hasGroundMesh={hasGroundMesh}
+                    placementPadEditActive={placementPadEditActive}
+                    onTogglePadEdit={togglePlacementPadEdit}
+                    padDisplayMode={placementPad?.padDisplayMode ?? 'flat'}
+                    onPadDisplayMode={setPadDisplayMode}
+                    padSaveDisabled={!placementPadDirty || !placementPad}
+                    padSaving={padSaving}
+                    onSavePad={async () => {
+                        setPadSaving(true);
+                        try {
+                            const ok = await saveGroundPlacementPad();
+                            if (ok) {
+                                setNotification(
+                                    worldPreviewActive ? 'Default pad saved on this world.' : 'Placement pad saved.'
+                                );
+                            } else {
+                                setNotification('Could not save placement pad.');
+                            }
+                        } finally {
+                            setPadSaving(false);
+                        }
+                    }}
+                    onClearPad={async () => {
+                        setPadSaving(true);
+                        try {
+                            const ok = await clearGroundPlacementPad();
+                            if (ok) {
+                                setNotification(
+                                    worldPreviewActive ? 'World default pad cleared.' : 'Placement pad cleared.'
+                                );
+                            } else {
+                                setNotification('Could not clear placement pad.');
+                            }
+                        } finally {
+                            setPadSaving(false);
+                        }
+                    }}
+                    hasPlacementPad={!!placementPad}
+                    showBuildingOrientation={
+                        viewMode === 'exterior' &&
+                        !worldPreviewActive &&
+                        !!building?.model_url &&
+                        !!placementPad &&
+                        hasGroundMesh
+                    }
+                    buildingOrientationDegrees={buildingOrientationDeg}
+                    onBuildingOrientationDegreesChange={handleBuildingOrientationDeg}
+                    showSurroundFill={showSurroundFill}
+                    surroundCatalogAssets={surroundCatalogAssets}
+                    activeSurroundCatalogAssetId={effectiveWorldForUi?.active_surround_catalog_asset_id ?? null}
+                    surroundSaving={surroundSaving}
+                    onSurroundCatalogAssetChange={handleSurroundCatalogAssetChange}
+                />
             </div>
 
             <EngineSidebar
@@ -719,9 +940,11 @@ export default function Engine() {
                 onCreateUnitComplete={handleCreateUnitFromModal}
                 onUnitCreatedWithInterior={(unitId) => setInteriorAddedPopup({ unitId })}
                 onOpenBuildingPlan={() => setBuildingPlanModalOpen(true)}
+                worldPreviewMode={worldPreviewActive}
+                worldPreviewLabel={buildingWorldEnvironment?.label ?? 'World'}
             />
 
-            {buildingId && (
+            {buildingId && !worldPreviewActive && (
                 <BuildingPlanModal
                     open={buildingPlanModalOpen}
                     onClose={() => setBuildingPlanModalOpen(false)}
