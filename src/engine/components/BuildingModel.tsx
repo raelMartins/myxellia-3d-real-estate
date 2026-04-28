@@ -169,6 +169,7 @@ function BuildingPadFit({
     const modelOnlyRef = useRef<THREE.Group>(null);
     const [cx, cz] = placementPad.center;
     const userYaw = placementPad.buildingYaw ?? 0;
+    const verticalLiftM = placementPad.buildingVerticalOffsetM ?? 0;
 
     useLayoutEffect(() => {
         const orient = orientRef.current;
@@ -210,7 +211,7 @@ function BuildingPadFit({
     }, [placementPad.halfExtents, placementPad.center, userYaw, url, onModelBoundsXZ]);
 
     return (
-        <group position={[cx, 0, cz]}>
+        <group position={[cx, verticalLiftM, cz]}>
             <group ref={orientRef}>
                 <group ref={scaled} scale={[s, s, s]}>
                     <group ref={modelOnlyRef}>

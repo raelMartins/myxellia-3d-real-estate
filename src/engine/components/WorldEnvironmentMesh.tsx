@@ -18,18 +18,39 @@ export default function WorldEnvironmentMesh({
 }) {
     const modelWrapRef = useRef<THREE.Group>(null);
 
+    // ModelLoader resolves asynchronously (Suspense). A single layout effect on [url] often runs
+    // before any meshes exist, so pad raycasts would never hit `isWorldGround`. Re-try until tagged.
     useLayoutEffect(() => {
         const wrap = modelWrapRef.current;
         if (!wrap) return;
-        wrap.traverse((obj) => {
-            const mesh = obj as THREE.Mesh;
-            if (mesh.isMesh) {
-                mesh.receiveShadow = true;
-                mesh.castShadow = true;
-                // Required for orbit limits & pad raycasts; do not tag decorative surround the same way.
-                mesh.userData.isWorldGround = true;
+        let cancelled = false;
+        let raf = 0;
+        let attempts = 0;
+        const MAX_ATTEMPTS = 900;
+
+        const tagMeshes = () => {
+            if (cancelled) return;
+            attempts += 1;
+            let meshCount = 0;
+            wrap.traverse((obj) => {
+                const mesh = obj as THREE.Mesh;
+                if (mesh.isMesh) {
+                    mesh.receiveShadow = true;
+                    mesh.castShadow = true;
+                    mesh.userData.isWorldGround = true;
+                    meshCount += 1;
+                }
+            });
+            if (meshCount === 0 && attempts < MAX_ATTEMPTS && !cancelled) {
+                raf = requestAnimationFrame(tagMeshes);
             }
-        });
+        };
+
+        tagMeshes();
+        return () => {
+            cancelled = true;
+            cancelAnimationFrame(raf);
+        };
     }, [url]);
 
     return (

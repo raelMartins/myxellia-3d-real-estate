@@ -1,4 +1,5 @@
 import type { Database } from './database.types';
+import { getValidAccessToken } from './supabase';
 
 export type SkyboxCollectionRow = Database['public']['Tables']['skybox_collections']['Row'];
 export type SkyboxCollectionSlotRow = Database['public']['Tables']['skybox_collection_slots']['Row'];
@@ -10,13 +11,17 @@ export type SkyboxCollectionWithSlots = SkyboxCollectionRow & {
 const supabaseUrl = () => process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const supabaseKey = () => process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
+async function authBearer(getToken: () => string | undefined): Promise<string | undefined> {
+    return (await getValidAccessToken()) ?? getToken();
+}
+
 const selectWithSlots =
     'id,created_at,label,skybox_collection_slots(id,collection_id,label,file_url,sort_order)';
 
 export async function fetchSkyboxCollections(getToken: () => string | undefined): Promise<SkyboxCollectionWithSlots[]> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key) return [];
     const res = await fetch(
         `${url}/rest/v1/skybox_collections?select=${encodeURIComponent(selectWithSlots)}&order=created_at.desc`,
@@ -39,7 +44,7 @@ export async function fetchSkyboxCollectionById(
 ): Promise<SkyboxCollectionWithSlots | null> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key) return null;
     const res = await fetch(
         `${url}/rest/v1/skybox_collections?id=eq.${id}&select=${encodeURIComponent(selectWithSlots)}`,
@@ -62,7 +67,7 @@ export async function createSkyboxCollection(
 ): Promise<SkyboxCollectionRow | null> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return null;
     const res = await fetch(`${url}/rest/v1/skybox_collections?select=*`, {
         method: 'POST',
@@ -82,7 +87,7 @@ export async function createSkyboxCollection(
 async function uploadHdrToBucket(file: File, stem: string, getToken: () => string | undefined): Promise<string | null> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return null;
     const ext = file.name.split('.').pop()?.toLowerCase() || 'hdr';
     const path = `${Date.now()}_${stem.replace(/\s+/g, '_').slice(0, 60)}.${ext}`;
@@ -107,7 +112,7 @@ export async function insertSkyboxCollectionSlot(
 ): Promise<SkyboxCollectionSlotRow | null> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return null;
     const res = await fetch(`${url}/rest/v1/skybox_collection_slots?select=*`, {
         method: 'POST',
@@ -157,7 +162,7 @@ export async function patchSkyboxCollectionSlotOrder(
 ): Promise<boolean> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return false;
     const res = await fetch(`${url}/rest/v1/skybox_collection_slots?id=eq.${slotId}`, {
         method: 'PATCH',
@@ -179,7 +184,7 @@ export async function patchSkyboxCollectionSlotLabel(
 ): Promise<boolean> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return false;
     const res = await fetch(`${url}/rest/v1/skybox_collection_slots?id=eq.${slotId}`, {
         method: 'PATCH',
@@ -197,7 +202,7 @@ export async function patchSkyboxCollectionSlotLabel(
 export async function deleteSkyboxCollectionSlot(id: string, getToken: () => string | undefined): Promise<boolean> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return false;
     const res = await fetch(`${url}/rest/v1/skybox_collection_slots?id=eq.${id}`, {
         method: 'DELETE',
@@ -213,7 +218,7 @@ export async function deleteSkyboxCollectionSlot(id: string, getToken: () => str
 export async function deleteSkyboxCollection(id: string, getToken: () => string | undefined): Promise<boolean> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return false;
     const res = await fetch(`${url}/rest/v1/skybox_collections?id=eq.${id}`, {
         method: 'DELETE',
@@ -233,7 +238,7 @@ export async function patchSkyboxCollectionLabel(
 ): Promise<boolean> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return false;
     const res = await fetch(`${url}/rest/v1/skybox_collections?id=eq.${id}`, {
         method: 'PATCH',

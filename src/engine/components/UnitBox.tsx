@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { useEngineStore } from '@/engine/store/engine.store';
 import { useAuthStore } from '@/store/auth.store';
 import { boxesOverlap, parseUnitPosition, parseUnitSize } from '@/engine/lib/unitBoxOverlap';
+import { isUnitAllocatedToOtherClient } from '@/engine/lib/unitClientAccess';
 import UnitBoxCornerHandles from './UnitBoxCornerHandles';
 
 export interface UnitMesh {
@@ -34,8 +35,22 @@ type R3FPointerEvent = { stopPropagation: () => void; intersections: Array<{ poi
 export default function UnitBox({ unit }: { unit: UnitMesh }) {
     const meshRef = useRef<THREE.Mesh>(null!);
     const groupRef = useRef<THREE.Group>(null!);
-    const { units: storeUnits, selectedUnit, hoveredUnit, unitStatuses, setSelectedUnit, setHoveredUnit, setViewMode, unitPositionHandler, unitSizeHandler } = useEngineStore();
+    const {
+        units: storeUnits,
+        selectedUnit,
+        hoveredUnit,
+        unitStatuses,
+        unitAllocationUserIds,
+        unitAllocationNames,
+        setSelectedUnit,
+        setHoveredUnit,
+        setViewMode,
+        setNotification,
+        unitPositionHandler,
+        unitSizeHandler,
+    } = useEngineStore();
     const isAdmin = useAuthStore((s) => s.profile?.role === 'admin');
+    const currentUserId = useAuthStore((s) => s.user?.id);
     const clickCountRef = useRef(0);
     const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const dragJustEndedRef = useRef(false);
@@ -84,6 +99,18 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
     const handleClick = () => {
         if (dragJustEndedRef.current) {
             dragJustEndedRef.current = false;
+            return;
+        }
+        if (
+            isUnitAllocatedToOtherClient({
+                unitId: unit.id,
+                currentUserId,
+                isAdmin,
+                unitAllocationUserIds,
+            })
+        ) {
+            const n = unitAllocationNames[unit.id]?.trim();
+            setNotification(n ? `This unit is allocated to ${n}.` : 'This unit is already allocated to another client.');
             return;
         }
         clickCountRef.current += 1;
@@ -201,7 +228,22 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
                 scale={[scale, scale, scale]}
                 onClick={handleClick}
                 onPointerDown={onPointerDown}
-                onPointerOver={(e: R3FPointerEvent) => { e.stopPropagation(); setHoveredUnit(unit.id); if (!isDragging && !isResizing) document.body.style.cursor = isAdmin && isSelected ? 'grab' : 'pointer'; }}
+                onPointerOver={(e: R3FPointerEvent) => {
+                    e.stopPropagation();
+                    setHoveredUnit(unit.id);
+                    if (!isDragging && !isResizing) {
+                        const blocked =
+                            !isAdmin &&
+                            isUnitAllocatedToOtherClient({
+                                unitId: unit.id,
+                                currentUserId,
+                                isAdmin,
+                                unitAllocationUserIds,
+                            });
+                        document.body.style.cursor =
+                            blocked ? 'not-allowed' : isAdmin && isSelected ? 'grab' : 'pointer';
+                    }
+                }}
                 onPointerOut={() => { setHoveredUnit(null); if (!isDragging && !isResizing) document.body.style.cursor = 'auto'; }}
                 castShadow
                 receiveShadow

@@ -7,6 +7,7 @@ import SetDefaultSkyboxButton from '@/components/SetDefaultSkyboxButton';
 import SetDefaultWorldEnvironmentButton from '@/components/SetDefaultWorldEnvironmentButton';
 import CustomSelect from '@/components/CustomSelect';
 import type { SurroundCatalogAssetRow } from '@/lib/database.types';
+import { BUILDING_VERTICAL_OFFSET_MAX_M, BUILDING_VERTICAL_OFFSET_MIN_M } from '@/lib/groundPlacementPad';
 import type { SurroundLayoutMode, WorldEnvironmentWithSky } from '@/lib/worldEnvironments';
 import type { SkyboxCollectionWithSlots } from '@/lib/skyboxCollections';
 import type { SkyboxSlotRow } from '@/lib/skyboxEnvResolve';
@@ -72,6 +73,9 @@ export interface EngineRightPanelProps {
     showBuildingOrientation?: boolean;
     buildingOrientationDegrees?: number;
     onBuildingOrientationDegreesChange?: (deg: number) => void;
+    /** Shift building up (+) / down (-) in meters after base-on-ground alignment */
+    buildingVerticalOffsetM?: number;
+    onBuildingVerticalOffsetMChange?: (meters: number) => void;
     /** Surround props from global catalog: pick asset and spacing (packed / spread / sparse). */
     showSurroundFill?: boolean;
     surroundCatalogAssets?: SurroundCatalogAssetRow[];
@@ -134,6 +138,8 @@ export default function EngineRightPanel({
     showBuildingOrientation = false,
     buildingOrientationDegrees = 0,
     onBuildingOrientationDegreesChange,
+    buildingVerticalOffsetM = 0,
+    onBuildingVerticalOffsetMChange,
     showSurroundFill = false,
     surroundCatalogAssets = [],
     activeSurroundCatalogAssetId = null,
@@ -439,8 +445,8 @@ export default function EngineRightPanel({
                                         </span>
                                         <p className="text-[10px] text-[#94A3B8]/80 leading-relaxed">
                                             {worldPreviewMode
-                                                ? 'With editing on, click and drag on the ground to draw a rectangle (like a snip or crop box). Saved on the world as the default pad when a building has none.'
-                                                : 'With editing on, click and drag on the ground to draw a rectangle. The gold overlay is the build area; the building scales to fit inside (contain).'}
+                                                ? 'With editing on: new pads snap to the ground footprint. Drag the gold pad to move it on the ground; drag corners to resize. Shift + Arrow Up/Down nudges the pad vertically. Save sets the world default when a building has no pad.'
+                                                : 'With editing on: drag the gold pad body to move it on the ground; drag corners to resize (axis-aligned rectangle). Corners show a resize cursor; the body shows a grab cursor while dragging. Shift + Arrow Up/Down moves the pad vertically. The building scales to fit inside the pad (contain).'}
                                         </p>
                                         <button
                                             type="button"
@@ -498,6 +504,35 @@ export default function EngineRightPanel({
                                                     />
                                                     <span className="text-[10px] tabular-nums text-[#C6A664] w-10 text-right shrink-0">
                                                         {buildingOrientationDegrees}°
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                        {viewMode === 'exterior' && hasPlacementPad && onBuildingVerticalOffsetMChange ? (
+                                            <div className="flex flex-col gap-1.5 pt-1">
+                                                <span className="text-[9px] tracking-[0.2em] text-[#94A3B8] uppercase">
+                                                    Building height on pad
+                                                </span>
+                                                <p className="text-[9px] text-[#94A3B8]/75 leading-snug">
+                                                    Moves the fitted building up or down in world space after the red base
+                                                    sits on the ground. The gold pad stays on the terrain; use this to tuck
+                                                    the base in or lift slightly above the mesh.
+                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="range"
+                                                        min={BUILDING_VERTICAL_OFFSET_MIN_M}
+                                                        max={BUILDING_VERTICAL_OFFSET_MAX_M}
+                                                        step={0.05}
+                                                        value={buildingVerticalOffsetM}
+                                                        onChange={(e) =>
+                                                            onBuildingVerticalOffsetMChange(Number(e.target.value))
+                                                        }
+                                                        className="flex-1 accent-[#C6A664] h-1.5"
+                                                    />
+                                                    <span className="text-[10px] tabular-nums text-[#C6A664] w-14 text-right shrink-0">
+                                                        {buildingVerticalOffsetM >= 0 ? '+' : ''}
+                                                        {buildingVerticalOffsetM.toFixed(2)} m
                                                     </span>
                                                 </div>
                                             </div>

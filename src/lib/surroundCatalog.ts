@@ -1,8 +1,13 @@
 import type { SurroundCatalogAssetRow } from './database.types';
 import { extensionFromFileName, isAcceptedModel3dExtension } from './model3dFormats';
+import { getValidAccessToken } from './supabase';
 
 const supabaseUrl = () => process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const supabaseKey = () => process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+
+async function authBearer(getToken: () => string | undefined): Promise<string | undefined> {
+    return (await getValidAccessToken()) ?? getToken();
+}
 
 export type CreateSurroundCatalogOutcome =
     | { ok: true; row: SurroundCatalogAssetRow }
@@ -26,7 +31,7 @@ export async function fetchSurroundCatalogAssets(
 ): Promise<SurroundCatalogAssetRow[]> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key) return [];
     const res = await fetch(`${url}/rest/v1/surround_catalog_assets?select=*&order=created_at.desc`, {
         headers: {
@@ -46,7 +51,7 @@ export async function uploadSurroundCatalogFile(
 ): Promise<string | null> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return null;
     const safeName = file.name.replace(/\s+/g, '_');
     const ext = extensionFromFileName(safeName);
@@ -75,7 +80,7 @@ export async function createSurroundCatalogAsset(
 ): Promise<CreateSurroundCatalogOutcome> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) {
         return { ok: false, message: 'Missing Supabase configuration or sign-in.' };
     }
@@ -104,7 +109,7 @@ export async function createSurroundCatalogAsset(
 export async function deleteSurroundCatalogAsset(id: string, getToken: () => string | undefined): Promise<boolean> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return false;
     const res = await fetch(`${url}/rest/v1/surround_catalog_assets?id=eq.${id}`, {
         method: 'DELETE',

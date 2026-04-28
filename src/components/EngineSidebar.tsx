@@ -9,6 +9,8 @@ import AddUnitsModal from './AddUnitsModal';
 import type { UnitIdentityValues } from './UnitIdentityForm';
 import type { GeometryData } from './UnitGeometryStep';
 import { useEngineStore } from '@/engine/store/engine.store';
+import { useAuthStore } from '@/store/auth.store';
+import { isUnitAllocatedToOtherClient } from '@/engine/lib/unitClientAccess';
 import { formatCentsToCurrency } from '@/lib/currency';
 import type { Database } from '@/lib/database.types';
 
@@ -73,9 +75,17 @@ export default function EngineSidebar({
     const buildingId = (params?.buildingId as string | undefined) ?? undefined;
     const router = useRouter();
     const {
-        building, selectedUnit, hoveredUnit, unitStatuses,
-        setSelectedUnit, setHoveredUnit,
+        building,
+        selectedUnit,
+        hoveredUnit,
+        unitStatuses,
+        unitAllocationNames,
+        unitAllocationUserIds,
+        setSelectedUnit,
+        setHoveredUnit,
+        setNotification,
     } = useEngineStore();
+    const currentUserId = useAuthStore((s) => s.user?.id);
     const [addUnitsModalOpen, setAddUnitsModalOpen] = useState(false);
     const [deleteSubmitting, setDeleteSubmitting] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
@@ -242,20 +252,43 @@ export default function EngineSidebar({
                                             const status = unitStatuses[unit.id] ?? 'available';
                                             const isSelected = selectedUnit === unit.id;
                                             const isHovered = hoveredUnit === unit.id;
+                                            const allocatedToOther = isUnitAllocatedToOtherClient({
+                                                unitId: unit.id,
+                                                currentUserId,
+                                                isAdmin,
+                                                unitAllocationUserIds,
+                                            });
+                                            const allocName = unitAllocationNames[unit.id]?.trim();
                                             return (
                                                 <li key={unit.id}>
                                                     <button
                                                         type="button"
-                                                        onClick={() => setSelectedUnit(unit.id)}
+                                                        onClick={() => {
+                                                            if (allocatedToOther) {
+                                                                setNotification(
+                                                                    allocName
+                                                                        ? `This unit is allocated to ${allocName}.`
+                                                                        : 'This unit is already allocated to another client.'
+                                                                );
+                                                                return;
+                                                            }
+                                                            setSelectedUnit(unit.id);
+                                                        }}
                                                         onMouseEnter={() => setHoveredUnit(unit.id)}
                                                         onMouseLeave={() => setHoveredUnit(null)}
                                                         className={`
                                                             relative w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-all duration-200
                                                             ${isSelected ? 'glass-heavy border border-[#C6A664]/35 bg-white/5 ring-1 ring-[#C6A664]/15' : 'border border-transparent hover:bg-white/[0.04]'}
+                                                            ${allocatedToOther ? 'opacity-55 cursor-not-allowed' : ''}
                                                         `}
                                                     >
-                                                        <span className={`shrink-0 text-[11px] font-medium tabular-nums ${isSelected ? 'text-[#F5F7FA]' : 'text-[#94A3B8]'}`}>
-                                                            {unit.unit_number}
+                                                        <span className={`shrink-0 flex flex-col items-start min-w-0 ${isSelected ? 'text-[#F5F7FA]' : 'text-[#94A3B8]'}`}>
+                                                            <span className="text-[11px] font-medium tabular-nums">{unit.unit_number}</span>
+                                                            {allocatedToOther && (
+                                                                <span className="text-[9px] text-red-300/90 font-normal tracking-wide normal-case truncate max-w-[11rem]">
+                                                                    Allocated{allocName ? ` · ${allocName}` : ''}
+                                                                </span>
+                                                            )}
                                                         </span>
                                                         <span className="flex-1 min-w-0 text-[10px] tracking-wide text-[#94A3B8]/70 font-light truncate text-right">
                                                             {unit.price ? formatCentsToCurrency(Number(unit.price)) : 'Contact'}

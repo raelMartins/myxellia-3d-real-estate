@@ -2,6 +2,7 @@ import type { Database, SurroundCatalogAssetRow } from './database.types';
 import { extensionFromFileName, isAcceptedModel3dExtension } from './model3dFormats';
 import type { GroundPlacementPad } from './groundPlacementPad';
 import type { SkyboxCollectionWithSlots } from './skyboxCollections';
+import { getValidAccessToken } from './supabase';
 
 export type WorldEnvironmentRow = Database['public']['Tables']['world_environments']['Row'];
 export type WorldScatterAssetRow = Database['public']['Tables']['world_scatter_assets']['Row'];
@@ -34,6 +35,10 @@ export type WorldEnvironmentWithSky = WorldEnvironmentRow & {
 const supabaseUrl = () => process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const supabaseKey = () => process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
+async function authBearer(getToken: () => string | undefined): Promise<string | undefined> {
+    return (await getValidAccessToken()) ?? getToken();
+}
+
 const slotsEmbed = 'skybox_collection_slots(id,collection_id,label,file_url,sort_order)';
 
 /** FK from `world_scatter_assets.world_environment_id` → list of props for this world (not the active pointer). */
@@ -59,7 +64,7 @@ export async function getWorldEnvironmentRestSelect(
     if (worldEnvironmentRestSelectResolved) return worldEnvironmentRestSelectResolved;
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key) {
         worldEnvironmentRestSelectResolved = WORLD_ENVIRONMENT_REST_SELECT_LEGACY;
         return worldEnvironmentRestSelectResolved;
@@ -103,7 +108,7 @@ export function normalizeWorldEnvironmentRow(row: WorldEnvironmentWithSky): Worl
 export async function fetchWorldEnvironments(getToken: () => string | undefined): Promise<WorldEnvironmentWithSky[]> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key) return [];
     const sel = await getWorldEnvironmentRestSelect(getToken);
     const res = await fetch(
@@ -128,7 +133,7 @@ export async function fetchWorldEnvironmentById(
 ): Promise<WorldEnvironmentWithSky | null> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key) return null;
     const sel = await getWorldEnvironmentRestSelect(getToken);
     const res = await fetch(
@@ -153,7 +158,7 @@ export async function createWorldEnvironment(
 ): Promise<WorldEnvironmentWithSky | null> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return null;
     const sel = await getWorldEnvironmentRestSelect(getToken);
     const res = await fetch(`${url}/rest/v1/world_environments?select=${encodeURIComponent(sel)}`, {
@@ -184,7 +189,7 @@ export async function patchWorldEnvironmentLabel(
 ): Promise<WorldEnvironmentWithSky | null> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return null;
     const trimmed = label.trim() || 'Environment';
     const sel = await getWorldEnvironmentRestSelect(getToken);
@@ -215,7 +220,7 @@ export async function patchWorldEnvironmentSkyCollection(
 ): Promise<boolean> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return false;
     const body =
         skybox_collection_id == null
@@ -241,7 +246,7 @@ export async function patchWorldEnvironmentGroundPad(
 ): Promise<boolean> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return false;
     const body =
         pad == null
@@ -253,6 +258,16 @@ export async function patchWorldEnvironmentGroundPad(
                       ...(pad.padDisplayMode ? { padDisplayMode: pad.padDisplayMode } : {}),
                       ...(pad.buildingYaw != null && Number.isFinite(pad.buildingYaw)
                           ? { buildingYaw: pad.buildingYaw }
+                          : {}),
+                      ...(pad.buildingVerticalOffsetM != null &&
+                      Number.isFinite(pad.buildingVerticalOffsetM) &&
+                      Math.abs(pad.buildingVerticalOffsetM) > 1e-6
+                          ? { buildingVerticalOffsetM: pad.buildingVerticalOffsetM }
+                          : {}),
+                      ...(pad.padVerticalOffsetM != null &&
+                      Number.isFinite(pad.padVerticalOffsetM) &&
+                      Math.abs(pad.padVerticalOffsetM) > 1e-6
+                          ? { padVerticalOffsetM: pad.padVerticalOffsetM }
                           : {}),
                   },
               };
@@ -272,7 +287,7 @@ export async function patchWorldEnvironmentGroundPad(
 export async function deleteWorldEnvironment(id: string, getToken: () => string | undefined): Promise<boolean> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return false;
     const res = await fetch(`${url}/rest/v1/world_environments?id=eq.${id}`, {
         method: 'DELETE',
@@ -285,17 +300,51 @@ export async function deleteWorldEnvironment(id: string, getToken: () => string 
     return res.ok;
 }
 
+export type GroundModelUploadResult =
+    | { ok: true; url: string }
+    | { ok: false; message: string };
+
+async function storageUploadErrorMessage(res: Response): Promise<string> {
+    const prefix = `Storage upload failed (HTTP ${res.status})`;
+    let raw = '';
+    try {
+        raw = await res.text();
+    } catch {
+        return prefix;
+    }
+    const trimmed = raw.trim();
+    if (!trimmed) return prefix;
+    try {
+        const j = JSON.parse(trimmed) as {
+            message?: string;
+            error?: string;
+            code?: string;
+        };
+        const msg = j.message ?? (typeof j.error === 'string' ? j.error : undefined);
+        if (j.code && msg) return `${prefix}: ${j.code} — ${msg}`;
+        if (msg) return `${prefix}: ${msg}`;
+        if (j.code) return `${prefix}: ${j.code}`;
+    } catch {
+        /* not JSON */
+    }
+    return `${prefix}: ${trimmed.slice(0, 400)}`;
+}
+
 export async function uploadGroundModelFile(
     file: File,
     getToken: () => string | undefined
-): Promise<string | null> {
+): Promise<GroundModelUploadResult> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
-    if (!url || !key || !token) return null;
+    const token = await authBearer(getToken);
+    if (!url || !key || !token) {
+        return { ok: false, message: 'Missing Supabase configuration or you are not signed in.' };
+    }
     const safeName = file.name.replace(/\s+/g, '_');
     const ext = extensionFromFileName(safeName);
-    if (!isAcceptedModel3dExtension(ext)) return null;
+    if (!isAcceptedModel3dExtension(ext)) {
+        return { ok: false, message: 'Unsupported ground model format.' };
+    }
     const lastDot = safeName.lastIndexOf('.');
     const stem = (lastDot >= 0 ? safeName.slice(0, lastDot) : safeName).slice(0, 80);
     const path = `env_ground_${Date.now()}_${stem}.${ext}`;
@@ -310,8 +359,10 @@ export async function uploadGroundModelFile(
         },
         body: file,
     });
-    if (!uploadRes.ok) return null;
-    return `${url}/storage/v1/object/public/models/${path}`;
+    if (!uploadRes.ok) {
+        return { ok: false, message: await storageUploadErrorMessage(uploadRes) };
+    }
+    return { ok: true, url: `${url}/storage/v1/object/public/models/${path}` };
 }
 
 export async function uploadScatterAssetFile(
@@ -320,7 +371,7 @@ export async function uploadScatterAssetFile(
 ): Promise<string | null> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return null;
     const safeName = file.name.replace(/\s+/g, '_');
     const ext = extensionFromFileName(safeName);
@@ -350,7 +401,7 @@ export async function createWorldScatterAsset(
 ): Promise<WorldScatterAssetRow | null> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return null;
     const res = await fetch(`${url}/rest/v1/world_scatter_assets?select=*`, {
         method: 'POST',
@@ -375,7 +426,7 @@ export async function createWorldScatterAsset(
 export async function deleteWorldScatterAsset(id: string, getToken: () => string | undefined): Promise<boolean> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return false;
     const res = await fetch(`${url}/rest/v1/world_scatter_assets?id=eq.${id}`, {
         method: 'DELETE',
@@ -396,7 +447,7 @@ export async function patchWorldEnvironmentSurroundSelection(
 ): Promise<WorldEnvironmentWithSky | null> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return null;
     const body: Record<string, unknown> = {
         active_surround_catalog_asset_id: payload.catalogAssetId,
@@ -432,7 +483,7 @@ export async function patchWorldEnvironmentActiveScatterAsset(
 ): Promise<WorldEnvironmentWithSky | null> {
     const url = supabaseUrl();
     const key = supabaseKey();
-    const token = getToken();
+    const token = await authBearer(getToken);
     if (!url || !key || !token) return null;
     const sel = await getWorldEnvironmentRestSelect(getToken);
     const res = await fetch(

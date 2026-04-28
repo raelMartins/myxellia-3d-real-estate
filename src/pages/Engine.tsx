@@ -21,6 +21,7 @@ import EngineRightPanel from '@/components/EngineRightPanel';
 import { useEngineStore } from '@/engine/store/engine.store';
 import { useAuthStore } from '@/store/auth.store';
 import { createReservation } from '@/lib/reservations';
+import { isUnitAllocatedToOtherClient } from '@/engine/lib/unitClientAccess';
 import {
     fetchSkyboxCollections,
     createCollectionWithHdrFiles,
@@ -80,7 +81,7 @@ export default function Engine() {
 
     const {
         building, units, loading,
-        selectedUnit, viewMode, lightingMode, unitStatuses, notification,
+        selectedUnit, viewMode, lightingMode, unitStatuses, unitAllocationUserIds, notification,
         skyboxCollections, selectedSkyboxUrl, selectedCatalogCollectionId, selectedSkyboxSlotId,
         modelBoundsXZ, focusUnitId,
         worldEnvironments, buildingWorldEnvironment, selectedWorldEnvironmentId,
@@ -91,7 +92,12 @@ export default function Engine() {
         setBuildingWorldEnvironment,
         resetEngine,
         placementPad, placementPadDirty, placementPadEditActive,
-        togglePlacementPadEdit, setPadDisplayMode, setPlacementPadBuildingYaw, saveGroundPlacementPad, clearGroundPlacementPad,
+        togglePlacementPadEdit,
+        setPadDisplayMode,
+        setPlacementPadBuildingYaw,
+        setPlacementPadBuildingVerticalOffsetM,
+        saveGroundPlacementPad,
+        clearGroundPlacementPad,
         worldPreviewActive, loadWorldPreview,
     } = useEngineStore();
 
@@ -128,10 +134,19 @@ export default function Engine() {
     useEffect(() => {
         if (!focusUnitIdFromUrl || units.length === 0) return;
         const exists = units.some((u: UnitRow) => u.id === focusUnitIdFromUrl);
-        if (exists) {
-            setSelectedUnit(focusUnitIdFromUrl);
+        if (!exists) return;
+        if (
+            isUnitAllocatedToOtherClient({
+                unitId: focusUnitIdFromUrl,
+                currentUserId: user?.id,
+                isAdmin,
+                unitAllocationUserIds,
+            })
+        ) {
+            return;
         }
-    }, [focusUnitIdFromUrl, units, setSelectedUnit]);
+        setSelectedUnit(focusUnitIdFromUrl);
+    }, [focusUnitIdFromUrl, units, unitAllocationUserIds, user?.id, isAdmin, setSelectedUnit]);
     useEffect(() => {
         const token = () => useAuthStore.getState().session?.access_token ?? undefined;
         fetchSkyboxCollections(token).then(setSkyboxCollections);
@@ -432,6 +447,7 @@ export default function Engine() {
         }
         setUnitStatus(selectedUnit, 'pending');
         setNotification(`Allocation requested — Unit ${selectedUnitData?.unit_number}`);
+        if (buildingId) void fetchUnits(buildingId);
     };
 
     const handleUnitSaved = () => {
@@ -952,6 +968,8 @@ export default function Engine() {
                     }
                     buildingOrientationDegrees={buildingOrientationDeg}
                     onBuildingOrientationDegreesChange={handleBuildingOrientationDeg}
+                    buildingVerticalOffsetM={placementPad?.buildingVerticalOffsetM ?? 0}
+                    onBuildingVerticalOffsetMChange={placementPad ? setPlacementPadBuildingVerticalOffsetM : undefined}
                     showSurroundFill={showSurroundFill}
                     surroundCatalogAssets={surroundCatalogAssets}
                     activeSurroundCatalogAssetId={effectiveWorldForUi?.active_surround_catalog_asset_id ?? null}

@@ -59,6 +59,8 @@ export default function WorldEnvironments() {
     const [catUploading, setCatUploading] = useState(false);
     const [catDeletingId, setCatDeletingId] = useState<string | null>(null);
     const catInputRef = useRef<HTMLInputElement>(null);
+    const [groundPreviewFile, setGroundPreviewFile] = useState<File | null>(null);
+    const [groundPreviewUrl, setGroundPreviewUrl] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -85,8 +87,9 @@ export default function WorldEnvironments() {
     useEffect(() => {
         return () => {
             if (catPreviewUrl) URL.revokeObjectURL(catPreviewUrl);
+            if (groundPreviewUrl) URL.revokeObjectURL(groundPreviewUrl);
         };
-    }, [catPreviewUrl]);
+    }, [catPreviewUrl, groundPreviewUrl]);
 
     const clearCatPreview = useCallback(() => {
         setCatPreviewFile(null);
@@ -110,34 +113,56 @@ export default function WorldEnvironments() {
         setCatDraftLabel((prev) => prev.trim() || file.name.replace(/\.[^.]+$/, '') || 'Surround prop');
     };
 
-    const handleGroundFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const clearGroundPreview = useCallback(() => {
+        setGroundPreviewFile(null);
+        if (groundPreviewUrl) URL.revokeObjectURL(groundPreviewUrl);
+        setGroundPreviewUrl(null);
+        if (groundInputRef.current) groundInputRef.current.value = '';
+    }, [groundPreviewUrl]);
+
+    const onGroundFileChosen = (file: File) => {
         if (!isAcceptedModel3dExtension(extensionFromFileName(file.name))) {
             setError('Ground model must be .glb, .gltf, .fbx, or .obj (same as building uploads).');
-            if (groundInputRef.current) groundInputRef.current.value = '';
             return;
         }
         if (!skyboxCollectionId) {
             setError('Choose a sky collection (with at least one HDR) for this environment.');
-            if (groundInputRef.current) groundInputRef.current.value = '';
             return;
         }
         const col = collections.find((c) => c.id === skyboxCollectionId);
         const n = col?.skybox_collection_slots?.length ?? 0;
         if (!col || n < 1) {
             setError('Selected sky collection has no HDR slots yet.');
-            if (groundInputRef.current) groundInputRef.current.value = '';
+            return;
+        }
+        setError(null);
+        setGroundPreviewFile(file);
+        if (groundPreviewUrl) URL.revokeObjectURL(groundPreviewUrl);
+        setGroundPreviewUrl(URL.createObjectURL(file));
+    };
+
+    const confirmGroundEnvironment = async () => {
+        const file = groundPreviewFile;
+        if (!file) return;
+        if (!skyboxCollectionId) {
+            setError('Choose a sky collection (with at least one HDR) for this environment.');
+            return;
+        }
+        const col = collections.find((c) => c.id === skyboxCollectionId);
+        const n = col?.skybox_collection_slots?.length ?? 0;
+        if (!col || n < 1) {
+            setError('Selected sky collection has no HDR slots yet.');
             return;
         }
         setError(null);
         setUploading(true);
         try {
-            const groundUrl = await uploadGroundModelFile(file, getToken);
-            if (!groundUrl) {
-                setError('Ground model upload failed.');
+            const groundUpload = await uploadGroundModelFile(file, getToken);
+            if (!groundUpload.ok) {
+                setError(groundUpload.message);
                 return;
             }
+            const groundUrl = groundUpload.url;
             const row = await createWorldEnvironment(
                 {
                     label: label || file.name.replace(/\.[^.]+$/, ''),
@@ -149,12 +174,12 @@ export default function WorldEnvironments() {
             if (row) {
                 setList((prev) => [row, ...prev]);
                 setLabel('');
+                clearGroundPreview();
             } else {
                 setError('Could not create environment row.');
             }
         } finally {
             setUploading(false);
-            if (groundInputRef.current) groundInputRef.current.value = '';
         }
     };
 
@@ -339,19 +364,74 @@ export default function WorldEnvironments() {
                             </div>
                             <p className="text-[10px] text-[#94A3B8]/70 mt-1">Select multiple files at once; order becomes time-of-day order (first = default).</p>
                         </div>
-                        <div>
+                        <div className="min-w-0 flex-1 sm:flex-initial">
                             <label className="block text-[10px] tracking-widest text-[#94A3B8] uppercase mb-2">Ground model</label>
-                            <input ref={groundInputRef} type="file" accept={MODEL_3D_INPUT_ACCEPT} className="hidden" onChange={handleGroundFile} />
-                            <button
-                                type="button"
-                                onClick={() => groundInputRef.current?.click()}
-                                disabled={uploading || !skyboxCollectionId}
-                                className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[#C6A664]/40 text-[#C6A664] text-[11px] tracking-wider uppercase font-medium hover:bg-[#C6A664]/10 disabled:opacity-50 transition-colors"
-                            >
-                                {uploading ? <Loader2 size={14} className="animate-spin" /> : <Box size={14} />}
-                                {uploading ? 'Working…' : 'Upload ground model'}
-                            </button>
-                            <p className="text-[10px] text-[#94A3B8]/70 mt-1">.glb, .gltf, .fbx, or .obj — same as building models.</p>
+                            <input
+                                ref={groundInputRef}
+                                type="file"
+                                accept={MODEL_3D_INPUT_ACCEPT}
+                                className="hidden"
+                                onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    if (f) onGroundFileChosen(f);
+                                    e.target.value = '';
+                                }}
+                            />
+                            <div className="flex flex-wrap gap-2 items-center">
+                                <button
+                                    type="button"
+                                    onClick={() => groundInputRef.current?.click()}
+                                    disabled={uploading || !skyboxCollectionId}
+                                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-[#C6A664]/40 text-[#C6A664] text-[11px] tracking-wider uppercase font-medium hover:bg-[#C6A664]/10 disabled:opacity-50 transition-colors"
+                                >
+                                    {uploading ? <Loader2 size={14} className="animate-spin" /> : <Box size={14} />}
+                                    Choose ground model
+                                </button>
+                                {groundPreviewFile && (
+                                    <button
+                                        type="button"
+                                        onClick={clearGroundPreview}
+                                        disabled={uploading}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 text-[10px] tracking-wider uppercase text-[#94A3B8] hover:bg-white/5 disabled:opacity-50"
+                                    >
+                                        <X size={14} /> Clear preview
+                                    </button>
+                                )}
+                            </div>
+                            <p className="text-[10px] text-[#94A3B8]/70 mt-1">
+                                .glb, .gltf, .fbx, or .obj — preview loads locally; confirm when ready (same as building deploy).
+                            </p>
+                            {groundPreviewUrl && groundPreviewFile && (
+                                <div className="mt-4 space-y-3">
+                                    <div className="relative w-full max-w-lg rounded-xl overflow-hidden border border-white/10 bg-black/40" style={{ height: 300 }}>
+                                        <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 text-[9px] tracking-[0.2em] text-[#C6A664] uppercase font-bold">
+                                            <Eye size={10} /> 3D preview
+                                        </div>
+                                        <Canvas camera={{ position: [5, 5, 5], fov: 45 }} shadows>
+                                            <color attach="background" args={['#0A0A0B']} />
+                                            <ambientLight intensity={0.5} />
+                                            <directionalLight position={[10, 10, 5]} intensity={1} castShadow />
+                                            <Center top>
+                                                <ModelLoader url={groundPreviewUrl} extension={groundPreviewFile.name.split('.').pop()} />
+                                            </Center>
+                                            <Environment preset="city" />
+                                            <ContactShadows opacity={0.4} scale={20} blur={2.4} />
+                                            <OrbitControls makeDefault autoRotate autoRotateSpeed={0.5} />
+                                        </Canvas>
+                                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 text-[9px] tracking-widest text-[#94A3B8]/60 uppercase pointer-events-none">
+                                            Drag to rotate · Scroll to zoom
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={uploading}
+                                        onClick={() => void confirmGroundEnvironment()}
+                                        className="px-5 py-2.5 rounded-xl bg-[#C6A664] text-[#0A0A0B] text-[10px] tracking-[0.2em] font-bold uppercase disabled:opacity-50"
+                                    >
+                                        {uploading ? 'Working…' : 'Create environment'}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

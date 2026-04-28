@@ -14,9 +14,12 @@ import {
 import {
     parseGroundPlacementPad,
     defaultGroundPlacementPad,
+    clampBuildingVerticalOffsetM,
     type GroundPlacementPad,
     type PadDisplayMode,
 } from '@/lib/groundPlacementPad'
+import { isUnitAllocatedToOtherClient } from '@/engine/lib/unitClientAccess'
+import { fetchBuildingUnitAllocationsRpc } from '@/engine/lib/fetchBuildingUnitAllocations'
 
 type UnitStatus = 'available' | 'pending' | 'sold'
 type LightingMode = 'morning' | 'golden' | 'night'
@@ -34,6 +37,10 @@ interface EngineState {
     viewMode: 'exterior' | 'interior'
     lightingMode: LightingMode
     unitStatuses: Record<string, UnitStatus>
+    /** Display names for users tied to active reservations (approved / soft_lock), when API allows. */
+    unitAllocationNames: Record<string, string>
+    /** `user_id` holding the winning approved or soft_lock reservation per unit (for client selection rules). */
+    unitAllocationUserIds: Record<string, string>
     notification: string | null
     screenshotHandler: (() => Promise<string>) | null
     unitPositionHandler: ((unitId: string, position: [number, number, number]) => Promise<void>) | null
@@ -59,6 +66,8 @@ interface EngineState {
     padHandleDragging: boolean
     /** Screen-space marquee while drawing placement pad (DOM overlay; not R3F) */
     padMarqueeScreen: { x0: number; y0: number; x1: number; y1: number } | null
+    /** True once after "new pad" — gizmo snaps center/size to imported ground before clearing */
+    placementPadSceneDefaultPending: boolean
     /** Saved orbit before entering placement-pad edit (restored on Done / Clear) */
     orbitBookmarkBeforePadEdit: { target: [number, number, number]; position: [number, number, number] } | null
     worldPreviewActive: boolean
@@ -94,8 +103,10 @@ interface EngineState {
     setPlacementPad: (pad: GroundPlacementPad | null) => void
     /** Additional Y rotation (rad) on top of auto 0 / π/2 lengthwise fit */
     setPlacementPadBuildingYaw: (yawRadians: number) => void
+    setPlacementPadBuildingVerticalOffsetM: (meters: number) => void
     setPadDisplayMode: (mode: PadDisplayMode) => void
     togglePlacementPadEdit: () => void
+    clearPlacementPadSceneDefaultPending: () => void
     setPadHandleDragging: (on: boolean) => void
     setPadMarqueeScreen: (rect: { x0: number; y0: number; x1: number; y1: number } | null) => void
     setOrbitBookmarkBeforePadEdit: (
@@ -129,6 +140,8 @@ export const useEngineStore = create<EngineState>((set) => ({
     lightingMode: 'golden',
     notification: null,
     unitStatuses: {},
+    unitAllocationNames: {},
+    unitAllocationUserIds: {},
     screenshotHandler: null,
     unitPositionHandler: null,
     unitSizeHandler: null,
@@ -149,6 +162,7 @@ export const useEngineStore = create<EngineState>((set) => ({
     placementPadEditActive: false,
     padHandleDragging: false,
     padMarqueeScreen: null,
+    placementPadSceneDefaultPending: false,
     orbitBookmarkBeforePadEdit: null,
     worldPreviewActive: false,
     previewWorldEnvironmentId: null,
@@ -219,6 +233,7 @@ export const useEngineStore = create<EngineState>((set) => ({
                 placementPadEditActive: false,
                 padHandleDragging: false,
                 padMarqueeScreen: null,
+                placementPadSceneDefaultPending: false,
                 orbitBookmarkBeforePadEdit: null,
             });
         } catch {
@@ -233,6 +248,7 @@ export const useEngineStore = create<EngineState>((set) => ({
                 placementPadEditActive: false,
                 padHandleDragging: false,
                 padMarqueeScreen: null,
+                placementPadSceneDefaultPending: false,
                 orbitBookmarkBeforePadEdit: null,
             });
         } finally {
@@ -261,31 +277,127 @@ export const useEngineStore = create<EngineState>((set) => ({
                 statuses[u.id] = u.status as UnitStatus;
             });
 
+            let unitAllocationNames: Record<string, string> = {};
+            let unitAllocationUserIds: Record<string, string> = {};
+
             if (unitList.length > 0) {
-                const unitIds = unitList.map((u) => u.id).join(',');
-                const resRes = await fetch(
-                    `${url}/rest/v1/reservations?status=eq.approved&unit_id=in.(${unitIds})&select=unit_id`,
-                    {
-                        headers: {
-                            apikey: key,
-                            ...(token && { Authorization: `Bearer ${token}` }),
-                            Accept: 'application/json',
-                        },
+                const unitIdSet = new Set(unitList.map((u) => u.id));
+                const rpcRows = await fetchBuildingUnitAllocationsRpc(buildingId, token);
+                if (rpcRows !== null) {
+                    unitAllocationUserIds = {};
+                    unitAllocationNames = {};
+                    for (const row of rpcRows) {
+                        if (!unitIdSet.has(row.unit_id)) continue;
+                        if (row.reservation_status === 'approved') {
+                            statuses[row.unit_id] = 'sold';
+                        } else {
+                            statuses[row.unit_id] = 'pending';
+                        }
+                        unitAllocationUserIds[row.unit_id] = row.user_id;
+                        const label = row.display_name?.trim();
+                        if (label) unitAllocationNames[row.unit_id] = label;
                     }
-                );
-                if (resRes.ok) {
-                    const approved = (await resRes.json()) as { unit_id: string }[];
-                    (approved || []).forEach((r) => {
-                        statuses[r.unit_id] = 'sold';
-                    });
+                } else {
+                    const unitIds = unitList.map((u) => u.id).join(',');
+                    const resRes = await fetch(
+                        `${url}/rest/v1/reservations?status=eq.approved&unit_id=in.(${unitIds})&select=unit_id`,
+                        {
+                            headers: {
+                                apikey: key,
+                                ...(token && { Authorization: `Bearer ${token}` }),
+                                Accept: 'application/json',
+                            },
+                        }
+                    );
+                    if (resRes.ok) {
+                        const approved = (await resRes.json()) as { unit_id: string }[];
+                        (approved || []).forEach((r) => {
+                            statuses[r.unit_id] = 'sold';
+                        });
+                    }
+
+                    const resAlloc = await fetch(
+                        `${url}/rest/v1/reservations?unit_id=in.(${unitIds})&status=in.(approved,soft_lock)&select=unit_id,user_id,status`,
+                        {
+                            headers: {
+                                apikey: key,
+                                ...(token && { Authorization: `Bearer ${token}` }),
+                                Accept: 'application/json',
+                            },
+                        }
+                    );
+                    if (resAlloc.ok) {
+                        const allocRows = (await resAlloc.json()) as { unit_id: string; user_id: string; status: string }[];
+                        const merged: Record<string, { user_id: string; status: string }> = {};
+                        const statusRank = (s: string) => (s === 'approved' ? 2 : 1);
+                        for (const row of allocRows) {
+                            const prev = merged[row.unit_id];
+                            if (!prev || statusRank(row.status) > statusRank(prev.status)) merged[row.unit_id] = row;
+                        }
+                        unitAllocationUserIds = {};
+                        for (const [unitId, row] of Object.entries(merged)) {
+                            unitAllocationUserIds[unitId] = row.user_id;
+                        }
+                        for (const [unitId, row] of Object.entries(merged)) {
+                            if (row.status === 'soft_lock' && statuses[unitId] !== 'sold') {
+                                statuses[unitId] = 'pending';
+                            }
+                        }
+                        const userIds = [...new Set(Object.values(merged).map((m) => m.user_id))];
+                        if (userIds.length > 0) {
+                            const idList = userIds.join(',');
+                            const profRes = await fetch(
+                                `${url}/rest/v1/profiles?id=in.(${idList})&select=id,full_name,company`,
+                                {
+                                    headers: {
+                                        apikey: key,
+                                        ...(token && { Authorization: `Bearer ${token}` }),
+                                        Accept: 'application/json',
+                                    },
+                                }
+                            );
+                            if (profRes.ok) {
+                                const profRows = (await profRes.json()) as { id: string; full_name: string | null; company: string | null }[];
+                                const profileLabel = (p: { full_name: string | null; company: string | null }) => {
+                                    const n = p.full_name?.trim();
+                                    const c = p.company?.trim();
+                                    if (n && c) return `${n} · ${c}`;
+                                    return n || c || 'Client';
+                                };
+                                const profById = new Map(profRows.map((p) => [p.id, profileLabel(p)]));
+                                unitAllocationNames = {};
+                                for (const [unitId, { user_id }] of Object.entries(merged)) {
+                                    const label = profById.get(user_id);
+                                    if (label) unitAllocationNames[unitId] = label;
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             if (myEpoch !== engineLoadEpoch) return;
-            set({ units: unitList, unitStatuses: statuses });
+            const uid = useAuthStore.getState().user?.id;
+            const isAdmin = useAuthStore.getState().profile?.role === 'admin';
+            const prevSel = useEngineStore.getState().selectedUnit;
+            const clearSel =
+                prevSel &&
+                isUnitAllocatedToOtherClient({
+                    unitId: prevSel,
+                    currentUserId: uid,
+                    isAdmin,
+                    unitAllocationUserIds,
+                });
+            set({
+                units: unitList,
+                unitStatuses: statuses,
+                unitAllocationNames,
+                unitAllocationUserIds,
+                ...(clearSel ? { selectedUnit: null } : {}),
+            });
         } catch {
             if (myEpoch !== engineLoadEpoch) return;
-            set({ units: [] });
+            set({ units: [], unitAllocationNames: {}, unitAllocationUserIds: {} });
         }
     },
 
@@ -326,6 +438,15 @@ export const useEngineStore = create<EngineState>((set) => ({
                 placementPadDirty: true,
             };
         }),
+    setPlacementPadBuildingVerticalOffsetM: (meters) =>
+        set((s) => {
+            if (!s.placementPad) return {};
+            const buildingVerticalOffsetM = clampBuildingVerticalOffsetM(meters);
+            const { buildingVerticalOffsetM: _prevOff, ...rest } = s.placementPad;
+            const placementPad: GroundPlacementPad =
+                Math.abs(buildingVerticalOffsetM) < 1e-6 ? rest : { ...rest, buildingVerticalOffsetM };
+            return { placementPad, placementPadDirty: true };
+        }),
     setPadDisplayMode: (mode) =>
         set((s) => {
             if (!s.placementPad) return {};
@@ -341,10 +462,16 @@ export const useEngineStore = create<EngineState>((set) => ({
                     orbitBookmarkBeforePadEdit: null,
                     placementPad: defaultGroundPlacementPad(),
                     placementPadDirty: true,
+                    placementPadSceneDefaultPending: true,
                 };
             }
-            return { placementPadEditActive: next, padMarqueeScreen: null };
+            return {
+                placementPadEditActive: next,
+                padMarqueeScreen: null,
+                placementPadSceneDefaultPending: next ? s.placementPadSceneDefaultPending : false,
+            };
         }),
+    clearPlacementPadSceneDefaultPending: () => set({ placementPadSceneDefaultPending: false }),
     setPadHandleDragging: (on) => set({ padHandleDragging: on }),
     setPadMarqueeScreen: (rect) => set({ padMarqueeScreen: rect }),
     setOrbitBookmarkBeforePadEdit: (bookmark) => set({ orbitBookmarkBeforePadEdit: bookmark }),
@@ -359,6 +486,16 @@ export const useEngineStore = create<EngineState>((set) => ({
             halfExtents: pad.halfExtents,
             ...(pad.padDisplayMode ? { padDisplayMode: pad.padDisplayMode } : {}),
             ...(pad.buildingYaw != null && Number.isFinite(pad.buildingYaw) ? { buildingYaw: pad.buildingYaw } : {}),
+            ...(pad.buildingVerticalOffsetM != null &&
+            Number.isFinite(pad.buildingVerticalOffsetM) &&
+            Math.abs(pad.buildingVerticalOffsetM) > 1e-6
+                ? { buildingVerticalOffsetM: pad.buildingVerticalOffsetM }
+                : {}),
+            ...(pad.padVerticalOffsetM != null &&
+            Number.isFinite(pad.padVerticalOffsetM) &&
+            Math.abs(pad.padVerticalOffsetM) > 1e-6
+                ? { padVerticalOffsetM: pad.padVerticalOffsetM }
+                : {}),
         };
 
         if (useEngineStore.getState().worldPreviewActive) {
@@ -417,6 +554,7 @@ export const useEngineStore = create<EngineState>((set) => ({
                 placementPadDirty: false,
                 placementPadEditActive: false,
                 padMarqueeScreen: null,
+                placementPadSceneDefaultPending: false,
             }));
             return true;
         }
@@ -441,6 +579,7 @@ export const useEngineStore = create<EngineState>((set) => ({
             placementPadDirty: false,
             placementPadEditActive: false,
             padMarqueeScreen: null,
+            placementPadSceneDefaultPending: false,
         }));
         return true;
     },
@@ -460,6 +599,7 @@ export const useEngineStore = create<EngineState>((set) => ({
             placementPadEditActive: false,
             padHandleDragging: false,
             padMarqueeScreen: null,
+            placementPadSceneDefaultPending: false,
             orbitBookmarkBeforePadEdit: null,
             selectedSkyboxUrl: null,
             selectedSkyboxSlotId: null,
@@ -477,6 +617,7 @@ export const useEngineStore = create<EngineState>((set) => ({
                     buildingWorldEnvironment: null,
                     selectedWorldEnvironmentId: null,
                     padMarqueeScreen: null,
+                    placementPadSceneDefaultPending: false,
                     orbitBookmarkBeforePadEdit: null,
                     notification: 'World environment not found or you do not have access.',
                 });
@@ -495,6 +636,7 @@ export const useEngineStore = create<EngineState>((set) => ({
                 placementPadDirty: false,
                 placementPadEditActive: false,
                 padMarqueeScreen: null,
+                placementPadSceneDefaultPending: false,
                 orbitBookmarkBeforePadEdit: null,
                 selectedSkyboxUrl: null,
                 selectedSkyboxSlotId: null,
@@ -520,6 +662,8 @@ export const useEngineStore = create<EngineState>((set) => ({
             lightingMode: 'golden',
             notification: null,
             unitStatuses: {},
+            unitAllocationNames: {},
+            unitAllocationUserIds: {},
             screenshotHandler: null,
             unitPositionHandler: null,
             unitSizeHandler: null,
@@ -540,6 +684,7 @@ export const useEngineStore = create<EngineState>((set) => ({
             placementPadEditActive: false,
             padHandleDragging: false,
             padMarqueeScreen: null,
+            placementPadSceneDefaultPending: false,
             orbitBookmarkBeforePadEdit: null,
             worldPreviewActive: false,
             previewWorldEnvironmentId: null,

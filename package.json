@@ -9,7 +9,8 @@
     "dev:reset": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "doc:data-types": "node scripts/generate-data-types-doc.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
