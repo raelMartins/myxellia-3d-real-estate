@@ -27,6 +27,8 @@ export type CustomSelectProps = {
     fullWidth?: boolean;
     'aria-label'?: string;
     onBlur?: () => void;
+    /** Portaled listbox + options: `studio` matches beige engine sidebar (no world mesh). */
+    listTone?: 'dark' | 'studio';
 };
 
 export default function CustomSelect({
@@ -44,6 +46,7 @@ export default function CustomSelect({
     fullWidth = true,
     'aria-label': ariaLabel,
     onBlur,
+    listTone = 'dark',
 }: CustomSelectProps) {
     const autoId = useId();
     const id = idProp ?? autoId;
@@ -120,18 +123,33 @@ export default function CustomSelect({
     const isCompact = variant === 'compact';
     const fieldChrome = isCompact ? compactBtn : baseBtn;
     const inlineChrome = isCompact ? inlineCompactBtn : inlineFieldBtn;
-    const triggerClass = `${frame === 'inline' ? inlineChrome : fieldChrome} ${buttonClassName}`.trim();
+    const studioTrigger =
+        listTone === 'studio'
+            ? '!text-[#715852] hover:!text-[#715852] focus-visible:!ring-[rgba(113,88,82,0.35)]'
+            : '';
+    const triggerClass = `${frame === 'inline' ? inlineChrome : fieldChrome} ${buttonClassName} ${studioTrigger}`.trim();
+
+    const menuSurface =
+        listTone === 'studio'
+            ? 'overflow-y-auto rounded-lg border border-[rgba(113,88,82,0.28)] bg-[#F2EBE5] py-1 shadow-[0_12px_32px_rgba(113,88,82,0.18)] backdrop-blur-md'
+            : 'overflow-y-auto rounded-lg border border-white/12 bg-[#1F1F23] py-1 shadow-[0_16px_48px_rgba(0,0,0,0.55)] backdrop-blur-md';
 
     const menu = (
         <div
             ref={menuRef}
             id={listId}
             role="listbox"
-            className="overflow-y-auto rounded-lg border border-white/12 bg-[#1F1F23] py-1 shadow-[0_16px_48px_rgba(0,0,0,0.55)] backdrop-blur-md"
+            className={menuSurface}
             style={menuStyle}
         >
             {options.map((opt) => {
                 const active = opt.value === value;
+                const rowStudio = active
+                    ? 'bg-[rgba(113,88,82,0.16)] text-[#715852]'
+                    : 'text-[#715852]/95 hover:bg-[rgba(113,88,82,0.08)]';
+                const rowDark = active
+                    ? 'bg-[#C6A664]/20 text-[#F5F7FA]'
+                    : 'text-[#F5F7FA]/90 hover:bg-white/[0.07]';
                 return (
                     <button
                         key={opt.value === '' ? '__empty__' : opt.value}
@@ -139,9 +157,7 @@ export default function CustomSelect({
                         role="option"
                         aria-selected={active}
                         className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
-                            active
-                                ? 'bg-[#C6A664]/20 text-[#F5F7FA]'
-                                : 'text-[#F5F7FA]/90 hover:bg-white/[0.07]'
+                            listTone === 'studio' ? rowStudio : rowDark
                         }`}
                         onClick={() => {
                             onChange(opt.value);
@@ -178,10 +194,22 @@ export default function CustomSelect({
                     setOpen((o) => !o);
                 }}
             >
-                <span className={`min-w-0 flex-1 truncate ${!selected && !value ? 'text-[#94A3B8]' : ''}`}>{label}</span>
+                <span
+                    className={`min-w-0 flex-1 truncate ${
+                        !selected && !value
+                            ? listTone === 'studio'
+                                ? 'text-[#715852]/55'
+                                : 'text-[#94A3B8]'
+                            : ''
+                    }`}
+                >
+                    {label}
+                </span>
                 <ChevronDown
                     size={isCompact ? 14 : 16}
-                    className={`ml-auto shrink-0 text-[#C6A664] transition-transform ${open ? 'rotate-180' : ''}`}
+                    className={`ml-auto shrink-0 transition-transform ${open ? 'rotate-180' : ''} ${
+                        listTone === 'studio' ? 'text-[#715852]/75' : 'text-[#C6A664]'
+                    }`}
                     strokeWidth={1.75}
                     aria-hidden
                 />

@@ -15,7 +15,7 @@ import PlacementPadEditCameraBridge from "./PlacementPadEditCameraBridge";
 import GroundedSkyboxEnv from "./GroundedSkyboxEnv";
 import InteriorModel from "./InteriorModel";
 import PrismKeyboardEdit from "./PrismKeyboardEdit";
-import { useEngineStore } from "@/engine/store/engine.store";
+import { useEngineStore, type LightingMode } from "@/engine/store/engine.store";
 import { resolveExteriorHdriUrl } from "@/lib/skyboxEnvResolve";
 import { pickEffectiveWorldEnvironment } from "@/lib/pickEffectiveWorldEnvironment";
 import {
@@ -25,8 +25,12 @@ import {
   type WorldEnvironmentWithSky,
 } from "@/lib/worldEnvironments";
 import { useAuthStore } from "@/store/auth.store";
-
-type LightingKey = "morning" | "golden" | "night";
+import NoWorldMeshExteriorCamera from "./NoWorldMeshExteriorCamera";
+import SelectedUnitOrbitFocus from "./SelectedUnitOrbitFocus";
+import R3fPointerHoverResync, {
+  CanvasPointerTracking,
+} from "./R3fPointerHoverResync";
+import { NO_WORLD_MESH_STUDIO_BACKGROUND } from "@/engine/lib/noWorldMeshView";
 
 function ScreenshotCapture() {
   const { gl } = useThree();
@@ -104,10 +108,10 @@ function HotspotPlacementCapture() {
 const LIGHTING = {
   morning: {
     preset: "dawn" as const,
-    ambient: 0.6,
-    dirColor: "#FFD9A0",
-    dirIntensity: 1.2,
-    dirPos: [8, 20, 8] as [number, number, number],
+    ambient: 0.78,
+    dirColor: "#FFECD0",
+    dirIntensity: 1.55,
+    dirPos: [11, 15, 13] as [number, number, number],
   },
   golden: {
     preset: "sunset" as const,
@@ -115,6 +119,13 @@ const LIGHTING = {
     dirColor: "#FFC060",
     dirIntensity: 1.8,
     dirPos: [-15, 12, 10] as [number, number, number],
+  },
+  noon: {
+    preset: "city" as const,
+    ambient: 0.5,
+    dirColor: "#FFF5E6",
+    dirIntensity: 1.5,
+    dirPos: [2, 28, 4] as [number, number, number],
   },
   night: {
     preset: "night" as const,
@@ -203,8 +214,11 @@ export default function MyxelliaCanvas() {
     selectedSkyboxSlotId,
     skyboxCollections,
     placementPadEditActive,
+    studioSidebarHoveredUnitId,
   } = useEngineStore();
   const effectiveWorld = useEffectiveWorldEnvironment();
+  /** No world row (explicit "No world mesh" or project default when building has no world). */
+  const noWorldMesh = effectiveWorld == null;
   const scatterWorldFresh = useScatterWorldRow(effectiveWorld, viewMode);
   const scatterForWorld = useMemo(() => {
     const ew =
@@ -228,7 +242,8 @@ export default function MyxelliaCanvas() {
     return { url: row.file_url, layoutMode, worldId: ew.id };
   }, [effectiveWorld, scatterWorldFresh]);
   const worldOrbitRootRef = useRef<THREE.Group | null>(null);
-  const L = LIGHTING[lightingMode as LightingKey];
+  const buildingRootRef = useRef<THREE.Group | null>(null);
+  const L = LIGHTING[lightingMode as LightingMode];
 
   const [tabVisible, setTabVisible] = useState(true);
   useEffect(() => {
@@ -258,6 +273,9 @@ export default function MyxelliaCanvas() {
     ],
   );
   const hasCustomEnv = !!envUrl;
+  const studioFlatBackground =
+    viewMode === "interior" ||
+    (viewMode === "exterior" && noWorldMesh);
 
   const envCtx = (building?.env_context || "").toLowerCase();
   const useCloudFog =
@@ -292,12 +310,27 @@ export default function MyxelliaCanvas() {
         powerPreference: "high-performance",
       }}
       shadows
+      onCreated={({ events }) => {
+        // Only the nearest surface along the ray participates in R3F pointer events (after sort by
+        // layer priority and distance). Prevents stacked unit prisms/boxes from all receiving the same
+        // click or hover when aligned in depth.
+        events.filter = (items) => (items.length > 0 ? [items[0]] : items);
+      }}
     >
-      {viewMode === "exterior" && !hasCustomEnv && (
+      <CanvasPointerTracking />
+      <R3fPointerHoverResync />
+      {studioFlatBackground && (
+        <color attach="background" args={[NO_WORLD_MESH_STUDIO_BACKGROUND]} />
+      )}
+
+      {viewMode === "exterior" && !noWorldMesh && !hasCustomEnv && (
         <color attach="background" args={["#0A0A0B"]} />
       )}
 
-      {viewMode === "exterior" && useCloudFog && !hasCustomEnv && (
+      {viewMode === "exterior" &&
+        !noWorldMesh &&
+        useCloudFog &&
+        !hasCustomEnv && (
         <fog attach="fog" args={["#141416", 10, 80]} />
       )}
 
@@ -311,7 +344,7 @@ export default function MyxelliaCanvas() {
       />
 
       <Suspense fallback={<AssetLoader />}>
-        {viewMode === "exterior" && (
+        {viewMode === "exterior" && !noWorldMesh && (
           <ErrorBoundary fallback={null}>
             {hasCustomEnv && envUrl ? (
               envUrl.toLowerCase().match(/\.(hdr|hdri)(\?|$)/) ? (
@@ -335,7 +368,11 @@ export default function MyxelliaCanvas() {
           </group>
         ) : null}
         {viewMode === "exterior" ? <PlacementPadGizmo /> : null}
-        {viewMode === "exterior" ? <BuildingModel /> : <InteriorModel />}
+        {viewMode === "exterior" ? (
+          <BuildingModel ref={buildingRootRef} />
+        ) : (
+          <InteriorModel />
+        )}
         {viewMode === "exterior" && <PrismKeyboardEdit />}
         {viewMode === "exterior" && <ScreenshotCapture />}
         {viewMode === "interior" && <InteriorCameraReset />}
@@ -352,7 +389,11 @@ export default function MyxelliaCanvas() {
         maxPolarAngle={Math.PI / 2}
         minDistance={viewMode === "interior" ? 1.5 : 4}
         maxDistance={viewMode === "interior" ? 180 : 144}
-        enablePan={false}
+        enablePan={
+          viewMode === "interior"
+            ? true
+            : noWorldMesh && studioSidebarHoveredUnitId == null
+        }
       />
       <EngineOrbitControlsBridge />
       <WorldGroundOrbitLimits
@@ -361,7 +402,12 @@ export default function MyxelliaCanvas() {
           viewMode === "exterior" ? effectiveWorld?.ground_model_url : null
         }
       />
+      <NoWorldMeshExteriorCamera
+        buildingRootRef={buildingRootRef}
+        active={noWorldMesh}
+      />
       <PlacementPadEditCameraBridge />
+      <SelectedUnitOrbitFocus buildingRootRef={buildingRootRef} />
     </Canvas>
   );
 }

@@ -2,27 +2,29 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ImagePlus, Loader2, Moon, PanelRightClose, Sun, Sunset } from 'lucide-react';
+import { ImagePlus, Loader2, PanelLeftClose, Sun } from 'lucide-react';
 import SetDefaultSkyboxButton from '@/components/SetDefaultSkyboxButton';
-import SetDefaultWorldEnvironmentButton from '@/components/SetDefaultWorldEnvironmentButton';
 import CustomSelect from '@/components/CustomSelect';
 import type { SurroundCatalogAssetRow } from '@/lib/database.types';
-import { BUILDING_VERTICAL_OFFSET_MAX_M, BUILDING_VERTICAL_OFFSET_MIN_M } from '@/lib/groundPlacementPad';
-import type { SurroundLayoutMode, WorldEnvironmentWithSky } from '@/lib/worldEnvironments';
+import {
+    BUILDING_VERTICAL_OFFSET_MAX_M,
+    BUILDING_VERTICAL_OFFSET_MIN_M,
+} from '@/lib/groundPlacementPad';
+import type { SurroundLayoutMode } from '@/lib/worldEnvironments';
 import type { SkyboxCollectionWithSlots } from '@/lib/skyboxCollections';
 import type { SkyboxSlotRow } from '@/lib/skyboxEnvResolve';
-
 const PANEL_WIDTH_EXPANDED = 320;
 const PANEL_COLLAPSED_SIZE = 48;
 const INSET = 16;
+/** Extra offset from top `INSET` so the panel clears the top scene bar (back + lighting + world row). */
+const LEFT_PANEL_TOP_BELOW_BACK_PX = 76;
+const LEFT_PANEL_TOP = INSET + LEFT_PANEL_TOP_BELOW_BACK_PX;
 
-type LightingMode = 'morning' | 'golden' | 'night';
-
-const LIGHTING_OPTS: { mode: LightingMode; icon: typeof Sun; label: string }[] = [
-    { mode: 'morning', icon: Sun, label: 'Morning' },
-    { mode: 'golden', icon: Sunset, label: 'Golden Hour' },
-    { mode: 'night', icon: Moon, label: 'Night' },
-];
+/** Shared with `EngineNoMeshLeftFilterPanel` so the studio filter replaces the same left slot. */
+export const ENGINE_SCENE_SIDE_INSET = INSET;
+export const ENGINE_SCENE_SIDE_PANEL_TOP = LEFT_PANEL_TOP;
+export const ENGINE_SCENE_SIDE_PANEL_WIDTH_EXPANDED = PANEL_WIDTH_EXPANDED;
+export const ENGINE_SCENE_SIDE_PANEL_COLLAPSED = PANEL_COLLAPSED_SIZE;
 
 const STORAGE_KEY = 'engineRightPanelCollapsed';
 
@@ -30,23 +32,13 @@ export interface EngineRightPanelProps {
     viewMode: 'exterior' | 'interior';
     isAdmin: boolean;
     buildingId: string | undefined;
-    location: string | null | undefined;
-    onOpenBuildingPlan: () => void;
-    hasSectionPlan: boolean;
-    showWorldEnvControls: boolean;
     hideSkyboxCatalog: boolean;
-    worldEnvironments: WorldEnvironmentWithSky[];
-    buildingWorldEnvironment: WorldEnvironmentWithSky | null;
-    selectedWorldEnvironmentId: string | null;
-    onWorldEnvironmentChange: (value: string) => void;
-    onWorldDefaultSaved: () => void;
     skyboxCollections: SkyboxCollectionWithSlots[];
     selectedCatalogCollectionId: string | null;
     selectedSkyboxSlotId: string | null;
     onSkyboxSlotChange: (slotId: string | null) => void;
     skySlotsForPicker: SkyboxSlotRow[];
     showSkySlotPicker: boolean;
-    lightingFromHdriSlots: boolean;
     resolvedHdriUrl: string | null;
     selectedSkyboxUrl: string | null;
     onSkyboxChange: (value: string | null) => void;
@@ -54,8 +46,6 @@ export interface EngineRightPanelProps {
     onWorldPreviewSkyboxFile?: (file: File) => void | Promise<void>;
     worldPreviewSkyboxUploading?: boolean;
     onSkyboxDefaultSaved: () => void;
-    lightingMode: LightingMode;
-    onLightingMode: (mode: LightingMode) => void;
     /** Ground pad controls — wired when store exposes these */
     hasGroundMesh: boolean;
     placementPadEditActive: boolean;
@@ -86,11 +76,11 @@ export interface EngineRightPanelProps {
     onSurroundLayoutModeChange?: (mode: SurroundLayoutMode | null) => void | Promise<void>;
 }
 
-function PanelRightOpenIcon({ size = 22 }: { size?: number }) {
+function PanelLeftOpenIcon({ size = 22 }: { size?: number }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <rect x="3" y="3" width="18" height="18" rx="2" />
-            <path d="M15 3v18" />
+            <path d="M9 3v18" />
         </svg>
     );
 }
@@ -99,31 +89,19 @@ export default function EngineRightPanel({
     viewMode,
     isAdmin,
     buildingId,
-    location,
-    onOpenBuildingPlan,
-    hasSectionPlan,
-    showWorldEnvControls,
     hideSkyboxCatalog,
-    worldEnvironments,
-    buildingWorldEnvironment,
-    selectedWorldEnvironmentId,
-    onWorldEnvironmentChange,
-    onWorldDefaultSaved,
     skyboxCollections,
     selectedCatalogCollectionId,
     selectedSkyboxSlotId,
     onSkyboxSlotChange,
     skySlotsForPicker,
     showSkySlotPicker,
-    lightingFromHdriSlots,
     resolvedHdriUrl,
     selectedSkyboxUrl,
     onSkyboxChange,
     onWorldPreviewSkyboxFile,
     worldPreviewSkyboxUploading = false,
     onSkyboxDefaultSaved,
-    lightingMode,
-    onLightingMode,
     hasGroundMesh,
     placementPadEditActive,
     onTogglePadEdit,
@@ -153,7 +131,7 @@ export default function EngineRightPanel({
         return window.localStorage.getItem(STORAGE_KEY) === '1';
     });
     const [expandedHeight, setExpandedHeight] = useState(
-        typeof window !== 'undefined' ? window.innerHeight - INSET * 2 : 500
+        typeof window !== 'undefined' ? window.innerHeight - LEFT_PANEL_TOP - INSET : 500
     );
     const worldPreviewHdrInputRef = useRef<HTMLInputElement>(null);
 
@@ -166,7 +144,7 @@ export default function EngineRightPanel({
     }, [collapsed]);
 
     useEffect(() => {
-        const onResize = () => setExpandedHeight(window.innerHeight - INSET * 2);
+        const onResize = () => setExpandedHeight(window.innerHeight - LEFT_PANEL_TOP - INSET);
         onResize();
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
@@ -175,8 +153,8 @@ export default function EngineRightPanel({
     return (
         <motion.div
             className="absolute z-20 overflow-hidden glass-heavy flex flex-col pointer-events-auto"
-            style={{ right: INSET, top: INSET }}
-            initial={{ x: 60, opacity: 0 }}
+            style={{ left: INSET, top: LEFT_PANEL_TOP }}
+            initial={{ x: -60, opacity: 0 }}
             animate={{
                 x: 0,
                 opacity: 1,
@@ -193,7 +171,7 @@ export default function EngineRightPanel({
                     className="w-full h-full flex items-center justify-center rounded-full text-[#94A3B8] hover:text-[#C6A664] transition-colors"
                     aria-label="Open scene panel"
                 >
-                    <PanelRightOpenIcon size={22} />
+                    <PanelLeftOpenIcon size={22} />
                 </button>
             ) : (
                 <>
@@ -205,65 +183,12 @@ export default function EngineRightPanel({
                             className="p-1.5 rounded-lg text-[#94A3B8] hover:text-[#C6A664] hover:bg-white/5 transition-colors shrink-0"
                             aria-label="Collapse scene panel"
                         >
-                            <PanelRightClose size={18} strokeWidth={1.5} />
+                            <PanelLeftClose size={18} strokeWidth={1.5} />
                         </button>
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 pb-4 pt-2 flex flex-col gap-5">
                         {viewMode === 'exterior' && (
                             <>
-                                {isAdmin && !worldPreviewMode && (
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-[9px] tracking-[0.2em] text-[#94A3B8] uppercase">Admin</span>
-                                        <button
-                                            type="button"
-                                            onClick={onOpenBuildingPlan}
-                                            className="glass-heavy w-full px-3 py-2.5 rounded-xl border border-white/10 text-[10px] tracking-widest uppercase font-bold text-[#C6A664] hover:bg-[#C6A664]/10 transition-colors"
-                                        >
-                                            {hasSectionPlan ? 'Update Building Plan' : 'Add Building Plan'}
-                                        </button>
-                                    </div>
-                                )}
-
-                                {worldPreviewMode && buildingWorldEnvironment && (
-                                    <div className="flex flex-col gap-1.5">
-                                        <span className="text-[9px] tracking-[0.2em] text-[#94A3B8] uppercase">World mesh</span>
-                                        <div className="glass-heavy px-3 py-2.5 rounded-xl border border-white/10 text-[11px] text-[#F5F7FA] font-medium">
-                                            {buildingWorldEnvironment.label}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {showWorldEnvControls && !worldPreviewMode && (
-                                    <div className="flex flex-col gap-1.5">
-                                        <span className="text-[9px] tracking-[0.2em] text-[#94A3B8] uppercase">World mesh</span>
-                                        <div className="glass-heavy w-full min-w-0 px-2 py-2 rounded-xl border border-white/10 flex flex-wrap items-center gap-2">
-                                            <CustomSelect
-                                                variant="compact"
-                                                frame="inline"
-                                                value={selectedWorldEnvironmentId === '__none__' ? '__none__' : (selectedWorldEnvironmentId ?? '')}
-                                                onChange={onWorldEnvironmentChange}
-                                                className="min-w-0 w-full flex-1"
-                                                options={[
-                                                    { value: '', label: 'Project default' },
-                                                    { value: '__none__', label: 'No world mesh' },
-                                                    ...worldEnvironments.map((w) => ({ value: w.id, label: w.label })),
-                                                ]}
-                                            />
-                                            {isAdmin && buildingId && (
-                                                <SetDefaultWorldEnvironmentButton
-                                                    buildingId={buildingId}
-                                                    worldEnvironmentId={
-                                                        selectedWorldEnvironmentId === '__none__'
-                                                            ? null
-                                                            : (selectedWorldEnvironmentId ?? buildingWorldEnvironment?.id ?? null)
-                                                    }
-                                                    onSaved={onWorldDefaultSaved}
-                                                />
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
                                 {(worldPreviewMode || (skyboxCollections.length > 0 && !hideSkyboxCatalog)) && (
                                     <div className="flex flex-col gap-1.5">
                                         <span className="text-[9px] tracking-[0.2em] text-[#94A3B8] uppercase">Sky collection</span>
@@ -363,33 +288,6 @@ export default function EngineRightPanel({
                                         </div>
                                     </div>
                                 )}
-
-                                <div className="flex flex-col gap-1.5">
-                                    <span className="text-[9px] tracking-[0.2em] text-[#94A3B8] uppercase">
-                                        {lightingFromHdriSlots ? 'Preset lighting' : 'Lighting'}
-                                    </span>
-                                    <div className={`flex flex-col gap-1.5 ${lightingFromHdriSlots ? 'opacity-40 pointer-events-none' : ''}`}>
-                                        {LIGHTING_OPTS.map((opt) => {
-                                            const Icon = opt.icon;
-                                            const isActive = lightingMode === opt.mode;
-                                            return (
-                                                <button
-                                                    key={opt.mode}
-                                                    type="button"
-                                                    onClick={() => onLightingMode(opt.mode)}
-                                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-300 border ${
-                                                        isActive
-                                                            ? 'bg-[#C6A664]/25 border-[#C6A664]/50 text-[#F5F7FA]'
-                                                            : 'border-white/10 text-[#94A3B8] hover:text-[#F5F7FA] hover:border-white/20'
-                                                    }`}
-                                                >
-                                                    <Icon size={14} className={isActive ? '' : 'opacity-60'} />
-                                                    <span className="text-[10px] tracking-widest uppercase font-bold">{opt.label}</span>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
 
                                 {showSurroundFill && onSurroundCatalogAssetChange && onSurroundLayoutModeChange && (
                                     <div className="flex flex-col gap-1.5 border-t border-white/5 pt-4">
@@ -563,14 +461,6 @@ export default function EngineRightPanel({
                         {viewMode === 'interior' && (
                             <p className="text-[10px] text-[#94A3B8] tracking-wide">Scene options apply in exterior view.</p>
                         )}
-
-                        <div className="mt-auto pt-4 border-t border-white/5">
-                            <div className="text-[9px] tracking-[0.3em] text-[#C6A664] uppercase mb-1.5">
-                                {worldPreviewMode ? 'World' : 'Project context'}
-                            </div>
-                            <div className="text-base font-light text-[#F5F7FA] text-right">{location || 'Downtown District'}</div>
-                            <div className="text-[10px] tracking-widest text-[#94A3B8] uppercase mt-1 text-right">Lat 40.7128° N · Lon 74.0060° W</div>
-                        </div>
                     </div>
                 </>
             )}

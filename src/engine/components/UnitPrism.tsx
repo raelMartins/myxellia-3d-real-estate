@@ -31,6 +31,8 @@ const STATUS_EMISSIVE: Record<string, string> = {
 const GROUND_Y = -0.9;
 /** Default prism tint vs hover (matches prior look on hover). */
 const PRISM_COLOR_BRIGHTNESS_IDLE = 0.4;
+/** Shell opacity when not hovered, selected, or dragging — mesh stays pickable for hover/click. */
+const PRISM_SHELL_OPACITY_IDLE = 0;
 /**
  * Drei `Html` (transform=false): `screenScale ∝ distanceFactor / cameraDistance`.
  * - Scale `distanceFactor` with camera distance so orbit zoom does not dominate.
@@ -114,6 +116,7 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
     }, [unit.footprint, width, height, depth]);
 
     const brighten = isHovered && !isDragging;
+    const prismShellVisible = isHovered || isSelected || isDragging;
     const meshColor = useMemo(() => {
         const c = new THREE.Color(isSelected ? '#FFFFFF' : STATUS_COLOR[status]);
         if (!brighten) c.multiplyScalar(PRISM_COLOR_BRIGHTNESS_IDLE);
@@ -347,7 +350,7 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
     });
 
     return (
-        <group ref={groupRef} position={displayPos} rotation={[0, rotationY, 0]}>
+        <group ref={groupRef} userData={{ unitId: unit.id }} position={displayPos} rotation={[0, rotationY, 0]}>
             <mesh
                 ref={meshRef}
                 geometry={geometry}
@@ -384,7 +387,9 @@ export default function UnitPrism({ unit, allowDrag = true }: { unit: UnitPrismM
                     roughness={0.3}
                     metalness={0.6}
                     transparent
-                    opacity={isSelected ? 0.55 : 0.4}
+                    opacity={
+                        prismShellVisible ? (isSelected ? 0.55 : 0.4) : PRISM_SHELL_OPACITY_IDLE
+                    }
                 />
             </mesh>
             {brighten && (

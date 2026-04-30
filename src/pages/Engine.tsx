@@ -8,6 +8,12 @@ import { ErrorBoundary, type FallbackProps } from 'react-error-boundary';
 import MyxelliaCanvas from '@/engine/components/MyxelliaCanvas';
 import PadMarqueeOverlay from '@/engine/components/PadMarqueeOverlay';
 import EngineSidebar from '@/components/EngineSidebar';
+import EngineNoMeshLeftFilterPanel from '@/components/EngineNoMeshLeftFilterPanel';
+import {
+    computeStudioFilterBounds,
+    defaultStudioFilterState,
+    type StudioFilterState,
+} from '@/components/EngineNoMeshFilterControls';
 import EngineInteriorView from '@/engine/components/EngineInteriorView';
 import InteriorUploadModal from '@/components/InteriorUploadModal';
 import type { UnitIdentityValues } from '@/components/UnitIdentityForm';
@@ -16,6 +22,8 @@ import type { UnitCreateResult } from '@/components/AddUnitsModal';
 import BuildingPlanModal from '@/components/BuildingPlanModal';
 import type { BuildingPlanApplyPayload } from '@/components/BuildingPlanModal';
 import { slotToUnitGeometry, slotYExtent } from '@/lib/sectionPlanUnits';
+import EngineTopBanner from '@/engine/components/EngineTopBanner';
+import EngineTopSceneBar from '@/engine/components/EngineTopSceneBar';
 import EngineViewControls from '@/engine/components/EngineViewControls';
 import EngineRightPanel from '@/components/EngineRightPanel';
 import { useEngineStore } from '@/engine/store/engine.store';
@@ -44,7 +52,6 @@ import type { InteriorHotspot } from '@/lib/database.types';
 
 type UnitRow = Database['public']['Tables']['units']['Row'];
 const ease = [0.2, 0.8, 0.2, 1] as const;
-type LightingMode = 'morning' | 'golden' | 'night';
 
 function worldHasBundledSky(w: WorldEnvironmentWithSky | null | undefined): boolean {
     if (!w) return false;
@@ -112,6 +119,21 @@ export default function Engine() {
 
     const { profile, user } = useAuthStore();
     const isAdmin = profile?.role === 'admin';
+
+    const handleEngineHistoryBack = useCallback(() => {
+        if (typeof window === 'undefined') return;
+        if (window.history.length > 1) {
+            window.history.back();
+            return;
+        }
+        if (worldPreviewActive) {
+            window.location.assign('/world-environments');
+        } else if (buildingId) {
+            window.location.assign(`/detail/${buildingId}`);
+        } else {
+            window.location.assign('/');
+        }
+    }, [worldPreviewActive, buildingId]);
 
     useEffect(() => {
         if (worldPreviewId) {
@@ -202,13 +224,42 @@ export default function Engine() {
         })).sort((a, b) => b.name.localeCompare(a.name));
     }, [units]);
 
+    const boundsSourceUnits = useMemo(() => floors.flatMap((f) => f.units), [floors]);
+    const studioFilterBounds = useMemo(() => computeStudioFilterBounds(boundsSourceUnits), [boundsSourceUnits]);
+    const studioBoundsSig = `${studioFilterBounds.floorMin}|${studioFilterBounds.floorMax}|${studioFilterBounds.areaMin}|${studioFilterBounds.areaMax}|${studioFilterBounds.priceMinCents}|${studioFilterBounds.priceMaxCents}|${boundsSourceUnits.length}`;
+
     const effectiveWorldForUi = useMemo(
         () =>
             pickEffectiveWorldEnvironment(selectedWorldEnvironmentId, buildingWorldEnvironment, worldEnvironments),
         [buildingWorldEnvironment, selectedWorldEnvironmentId, worldEnvironments]
     );
 
-    const hideSkyboxCatalog = !worldPreviewActive && worldHasBundledSky(effectiveWorldForUi);
+    const studioFilterGeomActive =
+        !!building && !worldPreviewActive && effectiveWorldForUi == null && viewMode === 'exterior';
+
+    const [studioFilters, setStudioFilters] = useState<StudioFilterState>(() =>
+        defaultStudioFilterState(computeStudioFilterBounds([]))
+    );
+
+    useEffect(() => {
+        setStudioFilters(defaultStudioFilterState(studioFilterBounds));
+    }, [studioBoundsSig, studioFilterBounds]);
+
+    const patchStudioFilters = useCallback((patch: Partial<StudioFilterState>) => {
+        setStudioFilters((prev) => ({ ...prev, ...patch }));
+    }, []);
+
+    const showNoMeshLeftFilter =
+        studioFilterGeomActive && !selectedUnit && !focusUnitId;
+
+    const noMeshStudioTableFilters = useMemo(() => {
+        if (!studioFilterGeomActive) return undefined;
+        return { state: studioFilters, bounds: studioFilterBounds };
+    }, [studioFilterGeomActive, studioFilters, studioFilterBounds]);
+
+    const hideSkyboxCatalog =
+        !worldPreviewActive &&
+        (worldHasBundledSky(effectiveWorldForUi) || !effectiveWorldForUi);
 
     const exteriorHdriResolve = useMemo(
         () =>
@@ -231,6 +282,9 @@ export default function Engine() {
     );
 
     const skySlotPicker = useMemo(() => {
+        if (!worldPreviewActive && !effectiveWorldForUi) {
+            return { slots: [] as ReturnType<typeof orderedSlots>, showPicker: false as const };
+        }
         const w = effectiveWorldForUi;
         const fromWorld = w?.skybox_collections?.skybox_collection_slots;
         if (w?.skybox_collection_id && Array.isArray(fromWorld) && fromWorld.length > 0) {
@@ -244,7 +298,7 @@ export default function Engine() {
             }
         }
         return { slots: [] as ReturnType<typeof orderedSlots>, showPicker: false as const };
-    }, [effectiveWorldForUi, selectedCatalogCollectionId, skyboxCollections]);
+    }, [effectiveWorldForUi, worldPreviewActive, selectedCatalogCollectionId, skyboxCollections]);
     const showWorldEnvControls = worldEnvironments.length > 0 || !!buildingWorldEnvironment;
 
     const groundUrl = effectiveWorldForUi?.ground_model_url?.trim() ?? '';
@@ -821,6 +875,7 @@ export default function Engine() {
     return (
         <ErrorBoundary FallbackComponent={EngineErrorFallback}>
             <div className="w-screen h-screen bg-[#0A0A0B] text-[#F5F7FA] overflow-hidden relative">
+                <EngineTopBanner />
                 <AnimatePresence>
                 {notification && (
                     <motion.div
@@ -837,6 +892,17 @@ export default function Engine() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <EngineTopSceneBar
+                onBack={handleEngineHistoryBack}
+                viewMode={viewMode}
+                noWorldMesh={effectiveWorldForUi == null}
+                lightingMode={lightingMode}
+                onLightingMode={setLightingMode}
+                lightingFromHdriSlots={exteriorHdriResolve.fromCollectionSlots}
+                worldPreviewMode={worldPreviewActive}
+                buildingWorldEnvironment={buildingWorldEnvironment}
+            />
 
             <div className="absolute inset-0">
                 <div className="w-full h-full">
@@ -872,120 +938,102 @@ export default function Engine() {
 
                 <EngineViewControls />
 
-                <EngineRightPanel
-                    viewMode={viewMode}
-                    isAdmin={!!isAdmin}
-                    buildingId={buildingId}
-                    location={worldPreviewActive ? buildingWorldEnvironment?.label : building?.location}
-                    worldPreviewMode={worldPreviewActive}
-                    onOpenBuildingPlan={() => setBuildingPlanModalOpen(true)}
-                    hasSectionPlan={!!(building as { section_plan?: unknown })?.section_plan}
-                    showWorldEnvControls={showWorldEnvControls}
-                    hideSkyboxCatalog={hideSkyboxCatalog}
-                    worldEnvironments={worldEnvironments}
-                    buildingWorldEnvironment={buildingWorldEnvironment}
-                    selectedWorldEnvironmentId={selectedWorldEnvironmentId}
-                    onWorldEnvironmentChange={(v) => {
-                        setSelectedSkyboxSlotId(null);
-                        setSelectedCatalogCollectionId(null);
-                        if (v === '') {
-                            setSelectedWorldEnvironmentId(null);
-                            setSelectedSkyboxUrl(null);
-                        } else if (v === '__none__') {
-                            setSelectedWorldEnvironmentId('__none__');
-                            setSelectedSkyboxUrl(null);
-                        } else {
-                            setSelectedWorldEnvironmentId(v);
-                            setSelectedSkyboxUrl(null);
-                        }
-                    }}
-                    onWorldDefaultSaved={() => {
-                        if (buildingId) fetchBuilding(buildingId);
-                        setNotification('Default world environment updated.');
-                    }}
-                    skyboxCollections={skyboxCollections}
-                    selectedCatalogCollectionId={selectedCatalogCollectionId}
-                    selectedSkyboxSlotId={selectedSkyboxSlotId}
-                    onSkyboxSlotChange={setSelectedSkyboxSlotId}
-                    skySlotsForPicker={skySlotPicker.slots}
-                    showSkySlotPicker={skySlotPicker.showPicker}
-                    lightingFromHdriSlots={exteriorHdriResolve.fromCollectionSlots}
-                    resolvedHdriUrl={exteriorHdriResolve.url}
-                    selectedSkyboxUrl={selectedSkyboxUrl}
-                    onSkyboxChange={(v) => void handleSkyboxChange(v)}
-                    worldPreviewSkyboxUploading={worldPreviewSkyboxUploading}
-                    onWorldPreviewSkyboxFile={worldPreviewActive ? handleWorldPreviewSkyboxUpload : undefined}
-                    onSkyboxDefaultSaved={() => {
-                        if (buildingId) fetchBuilding(buildingId);
-                        setNotification('Default skybox updated.');
-                    }}
-                    lightingMode={lightingMode}
-                    onLightingMode={setLightingMode}
-                    hasGroundMesh={hasGroundMesh}
-                    placementPadEditActive={placementPadEditActive}
-                    onTogglePadEdit={togglePlacementPadEdit}
-                    padDisplayMode={placementPad?.padDisplayMode ?? 'flat'}
-                    onPadDisplayMode={setPadDisplayMode}
-                    padSaveDisabled={!placementPadDirty || !placementPad}
-                    padSaving={padSaving}
-                    onSavePad={async () => {
-                        setPadSaving(true);
-                        try {
-                            const ok = await saveGroundPlacementPad();
-                            if (ok) {
-                                setNotification(
-                                    worldPreviewActive ? 'Default pad saved on this world.' : 'Placement pad saved.'
-                                );
-                            } else {
-                                setNotification('Could not save placement pad.');
+                {showNoMeshLeftFilter ? (
+                    <EngineNoMeshLeftFilterPanel
+                        bounds={studioFilterBounds}
+                        state={studioFilters}
+                        onPatch={patchStudioFilters}
+                    />
+                ) : (
+                    <EngineRightPanel
+                        viewMode={viewMode}
+                        isAdmin={!!isAdmin}
+                        buildingId={buildingId}
+                        worldPreviewMode={worldPreviewActive}
+                        hideSkyboxCatalog={hideSkyboxCatalog}
+                        skyboxCollections={skyboxCollections}
+                        selectedCatalogCollectionId={selectedCatalogCollectionId}
+                        selectedSkyboxSlotId={selectedSkyboxSlotId}
+                        onSkyboxSlotChange={setSelectedSkyboxSlotId}
+                        skySlotsForPicker={skySlotPicker.slots}
+                        showSkySlotPicker={skySlotPicker.showPicker}
+                        resolvedHdriUrl={exteriorHdriResolve.url}
+                        selectedSkyboxUrl={selectedSkyboxUrl}
+                        onSkyboxChange={(v) => void handleSkyboxChange(v)}
+                        worldPreviewSkyboxUploading={worldPreviewSkyboxUploading}
+                        onWorldPreviewSkyboxFile={worldPreviewActive ? handleWorldPreviewSkyboxUpload : undefined}
+                        onSkyboxDefaultSaved={() => {
+                            if (buildingId) fetchBuilding(buildingId);
+                            setNotification('Default skybox updated.');
+                        }}
+                        hasGroundMesh={hasGroundMesh}
+                        placementPadEditActive={placementPadEditActive}
+                        onTogglePadEdit={togglePlacementPadEdit}
+                        padDisplayMode={placementPad?.padDisplayMode ?? 'flat'}
+                        onPadDisplayMode={setPadDisplayMode}
+                        padSaveDisabled={!placementPadDirty || !placementPad}
+                        padSaving={padSaving}
+                        onSavePad={async () => {
+                            setPadSaving(true);
+                            try {
+                                const ok = await saveGroundPlacementPad();
+                                if (ok) {
+                                    setNotification(
+                                        worldPreviewActive ? 'Default pad saved on this world.' : 'Placement pad saved.'
+                                    );
+                                } else {
+                                    setNotification('Could not save placement pad.');
+                                }
+                            } finally {
+                                setPadSaving(false);
                             }
-                        } finally {
-                            setPadSaving(false);
-                        }
-                    }}
-                    onClearPad={async () => {
-                        setPadSaving(true);
-                        try {
-                            const ok = await clearGroundPlacementPad();
-                            if (ok) {
-                                setNotification(
-                                    worldPreviewActive ? 'World default pad cleared.' : 'Placement pad cleared.'
-                                );
-                            } else {
-                                setNotification('Could not clear placement pad.');
+                        }}
+                        onClearPad={async () => {
+                            setPadSaving(true);
+                            try {
+                                const ok = await clearGroundPlacementPad();
+                                if (ok) {
+                                    setNotification(
+                                        worldPreviewActive ? 'World default pad cleared.' : 'Placement pad cleared.'
+                                    );
+                                } else {
+                                    setNotification('Could not clear placement pad.');
+                                }
+                            } finally {
+                                setPadSaving(false);
                             }
-                        } finally {
-                            setPadSaving(false);
+                        }}
+                        hasPlacementPad={!!placementPad}
+                        showBuildingOrientation={
+                            viewMode === 'exterior' &&
+                            !worldPreviewActive &&
+                            !!building?.model_url &&
+                            !!placementPad &&
+                            hasGroundMesh
                         }
-                    }}
-                    hasPlacementPad={!!placementPad}
-                    showBuildingOrientation={
-                        viewMode === 'exterior' &&
-                        !worldPreviewActive &&
-                        !!building?.model_url &&
-                        !!placementPad &&
-                        hasGroundMesh
-                    }
-                    buildingOrientationDegrees={buildingOrientationDeg}
-                    onBuildingOrientationDegreesChange={handleBuildingOrientationDeg}
-                    buildingVerticalOffsetM={placementPad?.buildingVerticalOffsetM ?? 0}
-                    onBuildingVerticalOffsetMChange={placementPad ? setPlacementPadBuildingVerticalOffsetM : undefined}
-                    showSurroundFill={showSurroundFill}
-                    surroundCatalogAssets={surroundCatalogAssets}
-                    activeSurroundCatalogAssetId={effectiveWorldForUi?.active_surround_catalog_asset_id ?? null}
-                    surroundLayoutMode={
-                        isSurroundLayoutMode(effectiveWorldForUi?.surround_layout_mode)
-                            ? effectiveWorldForUi.surround_layout_mode
-                            : null
-                    }
-                    surroundSaving={surroundSaving}
-                    onSurroundCatalogAssetChange={handleSurroundCatalogAssetChange}
-                    onSurroundLayoutModeChange={handleSurroundLayoutModeChange}
-                />
+                        buildingOrientationDegrees={buildingOrientationDeg}
+                        onBuildingOrientationDegreesChange={handleBuildingOrientationDeg}
+                        buildingVerticalOffsetM={placementPad?.buildingVerticalOffsetM ?? 0}
+                        onBuildingVerticalOffsetMChange={placementPad ? setPlacementPadBuildingVerticalOffsetM : undefined}
+                        showSurroundFill={showSurroundFill}
+                        surroundCatalogAssets={surroundCatalogAssets}
+                        activeSurroundCatalogAssetId={effectiveWorldForUi?.active_surround_catalog_asset_id ?? null}
+                        surroundLayoutMode={
+                            isSurroundLayoutMode(effectiveWorldForUi?.surround_layout_mode)
+                                ? effectiveWorldForUi.surround_layout_mode
+                                : null
+                        }
+                        surroundSaving={surroundSaving}
+                        onSurroundCatalogAssetChange={handleSurroundCatalogAssetChange}
+                        onSurroundLayoutModeChange={handleSurroundLayoutModeChange}
+                    />
+                )}
             </div>
 
             <EngineSidebar
+                viewMode={viewMode}
                 floors={floors}
+                studioTableFilters={noMeshStudioTableFilters}
                 selectedUnitData={selectedUnitData}
                 currentStatus={currentStatus}
                 unitFormError={unitFormError}

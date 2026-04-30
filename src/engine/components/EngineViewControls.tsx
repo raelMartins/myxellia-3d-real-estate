@@ -65,7 +65,11 @@ export default function EngineViewControls() {
                             <span className="mx-1.5 text-white/20">·</span>
                             <span className="text-[#94A3B8]">Scroll</span> to zoom in and out.
                             <span className="mx-1.5 text-white/20">·</span>
-                            <span className="text-[#64748B]">Pan is disabled.</span>
+                            <span className="text-[#64748B]">
+                                {selectedUnit
+                                    ? 'Focus eases onto the selected unit; switching units animates framing smoothly.'
+                                    : 'Pan is disabled.'}
+                            </span>
                         </p>
                     </>
                 )}

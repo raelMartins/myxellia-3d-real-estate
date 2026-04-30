@@ -20,9 +20,17 @@ interface AdminUnitFormProps {
     onError: (message: string) => void;
     /** When true, 3D box dimensions are controlled only via the building plan flow — no size fields or PATCH size. */
     geometryLocked?: boolean;
+    /** Beige / brown studio panel (no world mesh listings). */
+    studioListingStyle?: boolean;
 }
 
-export default function AdminUnitForm({ unit, onSaved, onError, geometryLocked = false }: AdminUnitFormProps) {
+export default function AdminUnitForm({
+    unit,
+    onSaved,
+    onError,
+    geometryLocked = false,
+    studioListingStyle = false,
+}: AdminUnitFormProps) {
     const [saving, setSaving] = useState(false);
     const [unitNumber, setUnitNumber] = useState(unit.unit_number);
     const [displayName, setDisplayName] = useState(unit.display_name ?? '');
@@ -59,6 +67,16 @@ export default function AdminUnitForm({ unit, onSaved, onError, geometryLocked =
         setSizeZ(sz);
     }, [unit.id, unit.unit_number, unit.display_name, unit.floor, unit.price, unit.area_sqm,
         unit.bedrooms, unit.bathrooms, unit.view_type, unit.amenities, unit.perks, unit.size]);
+
+    const S = studioListingStyle;
+    const lbl = S
+        ? 'block text-[10px] tracking-[0.2em] text-[#715852]/75 uppercase mb-1.5'
+        : 'block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5';
+    const field = S
+        ? 'w-full rounded-lg bg-white/45 border border-[rgba(113,88,82,0.28)] px-3 py-2.5 text-sm text-[#715852] placeholder-[#715852]/45'
+        : 'w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA] placeholder-[#94A3B8]/50';
+    const studioSelectBtn =
+        '!border-[rgba(113,88,82,0.28)] !bg-white/45 !text-[#715852] !shadow-none hover:!border-[rgba(113,88,82,0.42)] [&_svg]:!text-[#715852]';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -109,79 +127,57 @@ export default function AdminUnitForm({ unit, onSaved, onError, geometryLocked =
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-                <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Unit number</label>
-                <input
-                    type="text"
-                    value={unitNumber}
-                    onChange={(e) => setUnitNumber(e.target.value)}
-                    className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA] placeholder-[#94A3B8]/50"
-                    placeholder="e.g. 101"
-                />
+                <label className={lbl}>Unit number</label>
+                <input type="text" value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} className={field} placeholder="e.g. 101" />
             </div>
             <div>
-                <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Display name (optional)</label>
+                <label className={lbl}>Display name (optional)</label>
                 <input
                     type="text"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA] placeholder-[#94A3B8]/50"
+                    className={field}
                     placeholder="e.g. Skyline Penthouse"
                 />
             </div>
             <div className="grid grid-cols-2 gap-3">
                 <div>
-                    <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Floor</label>
-                    <NumberInput
-                        min={1}
-                        value={floor}
-                        onChange={setFloor}
-                        className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA]"
-                    />
+                    <label className={lbl}>Floor</label>
+                    <NumberInput min={1} value={floor} onChange={setFloor} className={field} />
                 </div>
                 <div>
-                    <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Price</label>
+                    <label className={lbl}>Price</label>
                     <CurrencyInput
                         value={price}
                         onChange={setPrice}
-                        className="w-full rounded-lg bg-white/5 border border-white/10 py-2.5 text-sm text-[#F5F7FA]"
+                        className={`${field} py-2.5`}
+                        studioListingStyle={S}
                     />
                 </div>
             </div>
             <div className="grid grid-cols-3 gap-2">
                 <div>
-                    <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Area (m²)</label>
+                    <label className={lbl}>Area (m²)</label>
                     <NumberInput
                         allowDecimal
                         min={0}
                         value={areaSqm}
                         onChange={setAreaSqm}
                         hideZeroAsEmpty
-                        className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA]"
+                        className={field}
                     />
                 </div>
                 <div>
-                    <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Beds</label>
-                    <NumberInput
-                        min={0}
-                        value={bedrooms}
-                        onChange={setBedrooms}
-                        hideZeroAsEmpty
-                        className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA]"
-                    />
+                    <label className={lbl}>Beds</label>
+                    <NumberInput min={0} value={bedrooms} onChange={setBedrooms} hideZeroAsEmpty className={field} />
                 </div>
                 <div>
-                    <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Baths</label>
-                    <NumberInput
-                        min={0}
-                        value={bathrooms}
-                        onChange={setBathrooms}
-                        hideZeroAsEmpty
-                        className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA]"
-                    />
+                    <label className={lbl}>Baths</label>
+                    <NumberInput min={0} value={bathrooms} onChange={setBathrooms} hideZeroAsEmpty className={field} />
                 </div>
             </div>
             <div>
-                <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">View</label>
+                <label className={lbl}>View</label>
                 <CustomSelect
                     value={viewType || ''}
                     onChange={setViewType}
@@ -191,36 +187,49 @@ export default function AdminUnitForm({ unit, onSaved, onError, geometryLocked =
                         ...VIEW_OPTIONS.map((v) => ({ value: v, label: v })),
                     ]}
                     className="w-full"
-                    buttonClassName="py-2.5 text-sm"
+                    buttonClassName={S ? `py-2.5 text-sm ${studioSelectBtn}` : 'py-2.5 text-sm'}
                 />
             </div>
             <div>
-                <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Amenities</label>
+                <label className={lbl}>Amenities</label>
                 <textarea
                     value={amenities}
                     onChange={(e) => setAmenities(e.target.value)}
                     rows={2}
-                    className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA] placeholder-[#94A3B8]/50 resize-none"
+                    className={`${field} resize-none`}
                     placeholder="e.g. Gym, Pool, Concierge"
                 />
             </div>
             <div>
-                <label className="block text-[9px] tracking-[0.25em] text-[#C6A664] uppercase mb-1.5">Perks</label>
+                <label className={lbl}>Perks</label>
                 <textarea
                     value={perks}
                     onChange={(e) => setPerks(e.target.value)}
                     rows={2}
-                    className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-[#F5F7FA] placeholder-[#94A3B8]/50 resize-none"
+                    className={`${field} resize-none`}
                     placeholder="e.g. 2 parking spots, storage"
                 />
             </div>
             {!geometryLocked && (
-                <AdminUnitFormBoxSize value={[sizeX, sizeY, sizeZ]} onChange={([x, y, z]) => { setSizeX(x); setSizeY(y); setSizeZ(z); }} />
+                <AdminUnitFormBoxSize
+                    value={[sizeX, sizeY, sizeZ]}
+                    onChange={([x, y, z]) => {
+                        setSizeX(x);
+                        setSizeY(y);
+                        setSizeZ(z);
+                    }}
+                    studioListingStyle={S}
+                />
             )}
             <button
                 type="submit"
                 disabled={saving}
-                className="w-full py-3.5 rounded-xl bg-[#C6A664] text-[#0A0A0B] text-[11px] tracking-[0.2em] font-bold uppercase flex items-center justify-center gap-2 disabled:opacity-50"
+                className={
+                    S
+                        ? 'w-full py-3.5 rounded-lg text-[11px] tracking-[0.15em] font-bold uppercase flex items-center justify-center gap-2 disabled:opacity-50 text-[#F5F0EB]'
+                        : 'w-full py-3.5 rounded-xl bg-[#C6A664] text-[#0A0A0B] text-[11px] tracking-[0.2em] font-bold uppercase flex items-center justify-center gap-2 disabled:opacity-50'
+                }
+                style={S ? { background: '#715852' } : undefined}
             >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : null}
                 Save unit info

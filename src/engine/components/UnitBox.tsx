@@ -221,7 +221,7 @@ export default function UnitBox({ unit }: { unit: UnitMesh }) {
     };
 
     return (
-        <group ref={groupRef} position={displayPos}>
+        <group ref={groupRef} userData={{ unitId: unit.id }} position={displayPos}>
             <mesh
                 ref={meshRef}
                 position={[0, 0, 0]}

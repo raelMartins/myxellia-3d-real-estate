@@ -1,5 +1,59 @@
 export type PadDisplayMode = 'flat' | 'followTerrain';
 
+/** Which world axis the studio (no-ground) exterior camera sits on, facing the building center. */
+export type StudioExteriorFront = 'auto' | '+x' | '-x' | '+z' | '-z';
+
+export function isStudioExteriorFront(v: unknown): v is StudioExteriorFront {
+    return v === 'auto' || v === '+x' || v === '-x' || v === '+z' || v === '-z';
+}
+
+/** Reads `studioExteriorFront` from a `ground_placement_pad` JSON blob (with or without a full pad). */
+export function parseStudioExteriorFront(raw: unknown): StudioExteriorFront | undefined {
+    if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+    const v = (raw as Record<string, unknown>).studioExteriorFront;
+    return isStudioExteriorFront(v) ? v : undefined;
+}
+
+/** Horizontal model bounds (same space as `setModelBoundsXZ` in the engine). */
+export type ModelBoundsXZ = { minX: number; maxX: number; minZ: number; maxZ: number };
+
+/**
+ * Dropdown labels: length = long footprint edge, width = short edge (camera sits on the perpendicular axis).
+ */
+export function studioExteriorFrontSelectOptions(
+    bounds: ModelBoundsXZ | null | undefined,
+): { value: StudioExteriorFront; label: string }[] {
+    const auto = { value: 'auto' as const, label: 'Auto (longest side)' };
+    if (!bounds) {
+        return [
+            auto,
+            { value: '+z', label: 'Length A (+Z)' },
+            { value: '-z', label: 'Length B (−Z)' },
+            { value: '+x', label: 'Width A (+X)' },
+            { value: '-x', label: 'Width B (−X)' },
+        ];
+    }
+    const spanX = Math.max(1e-9, bounds.maxX - bounds.minX);
+    const spanZ = Math.max(1e-9, bounds.maxZ - bounds.minZ);
+    const lengthAlongX = spanX >= spanZ;
+    if (lengthAlongX) {
+        return [
+            auto,
+            { value: '+z', label: 'Length A' },
+            { value: '-z', label: 'Length B' },
+            { value: '+x', label: 'Width A' },
+            { value: '-x', label: 'Width B' },
+        ];
+    }
+    return [
+        auto,
+        { value: '+x', label: 'Length A' },
+        { value: '-x', label: 'Length B' },
+        { value: '+z', label: 'Width A' },
+        { value: '-z', label: 'Width B' },
+    ];
+}
+
 export type GroundPlacementPad = {
     center: [number, number];
     halfExtents: [number, number];
@@ -19,6 +73,8 @@ export type GroundPlacementPad = {
      * Shift + Arrow Up/Down while editing adjusts this value.
      */
     padVerticalOffsetM?: number;
+    /** Persisted on `ground_placement_pad` JSON for studio exterior; not required for pad geometry. */
+    studioExteriorFront?: StudioExteriorFront;
 };
 
 const DEFAULT_HALF: [number, number] = [1, 1];

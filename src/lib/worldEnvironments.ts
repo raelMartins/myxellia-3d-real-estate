@@ -269,6 +269,7 @@ export async function patchWorldEnvironmentGroundPad(
                       Math.abs(pad.padVerticalOffsetM) > 1e-6
                           ? { padVerticalOffsetM: pad.padVerticalOffsetM }
                           : {}),
+                      studioExteriorFront: pad.studioExteriorFront ?? 'auto',
                   },
               };
     const res = await fetch(`${url}/rest/v1/world_environments?id=eq.${id}`, {

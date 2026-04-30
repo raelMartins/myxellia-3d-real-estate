@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useRef, useLayoutEffect, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { Suspense, useRef, useLayoutEffect, useState, useCallback, useEffect, forwardRef, type ReactNode } from 'react';
 import { useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGLTF, Html, Center, useFBX } from '@react-three/drei';
@@ -224,7 +224,7 @@ function BuildingPadFit({
     );
 }
 
-export default function BuildingModel() {
+const BuildingModel = forwardRef<THREE.Group>(function BuildingModel(_, ref) {
     const { building, units, setModelBoundsXZ, focusUnitId, placementPad, worldPreviewActive } = useEngineStore();
     const onBounds = useCallback(
         (b: { minX: number; maxX: number; minZ: number; maxZ: number }) => {
@@ -283,7 +283,7 @@ export default function BuildingModel() {
     );
 
     return (
-        <group>
+        <group ref={ref}>
             <Suspense fallback={
                 <Html center>
                     <div className="text-[10px] tracking-[0.3em] uppercase text-[#C6A664] whitespace-nowrap animate-pulse bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">
@@ -313,4 +313,6 @@ export default function BuildingModel() {
             {!building?.model_url && !worldPreviewActive ? unitNodes : null}
         </group>
     );
-}
+});
+
+export default BuildingModel;

@@ -15,14 +15,16 @@ import {
     parseGroundPlacementPad,
     defaultGroundPlacementPad,
     clampBuildingVerticalOffsetM,
+    parseStudioExteriorFront,
     type GroundPlacementPad,
     type PadDisplayMode,
+    type StudioExteriorFront,
 } from '@/lib/groundPlacementPad'
 import { isUnitAllocatedToOtherClient } from '@/engine/lib/unitClientAccess'
 import { fetchBuildingUnitAllocationsRpc } from '@/engine/lib/fetchBuildingUnitAllocations'
 
 type UnitStatus = 'available' | 'pending' | 'sold'
-type LightingMode = 'morning' | 'golden' | 'night'
+export type LightingMode = 'morning' | 'noon' | 'golden' | 'night'
 type BuildingRow = Database['public']['Tables']['buildings']['Row']
 type UnitRow = Database['public']['Tables']['units']['Row']
 
@@ -34,6 +36,8 @@ interface EngineState {
     activeFloor: string | null
     selectedUnit: string | null
     hoveredUnit: string | null
+    /** Studio units table (no world mesh): row hover drives exterior camera only — not 3D prism hover. */
+    studioSidebarHoveredUnitId: string | null
     viewMode: 'exterior' | 'interior'
     lightingMode: LightingMode
     unitStatuses: Record<string, UnitStatus>
@@ -72,6 +76,8 @@ interface EngineState {
     orbitBookmarkBeforePadEdit: { target: [number, number, number]; position: [number, number, number] } | null
     worldPreviewActive: boolean
     previewWorldEnvironmentId: string | null
+    /** Studio (no-ground) exterior camera side; persisted on `buildings.ground_placement_pad` JSON. */
+    studioExteriorFront: StudioExteriorFront
 
     setBuilding: (id: string | null) => void
     fetchBuilding: (id: string) => Promise<void>
@@ -79,6 +85,7 @@ interface EngineState {
     setActiveFloor: (id: string | null) => void
     setSelectedUnit: (id: string | null) => void
     setHoveredUnit: (id: string | null) => void
+    setStudioSidebarHoveredUnitId: (id: string | null) => void
     setViewMode: (mode: 'exterior' | 'interior') => void
     setLightingMode: (mode: LightingMode) => void
     setUnitStatus: (id: string, status: UnitStatus) => void
@@ -115,6 +122,7 @@ interface EngineState {
     saveGroundPlacementPad: () => Promise<boolean>
     clearGroundPlacementPad: () => Promise<boolean>
     loadWorldPreview: (worldId: string) => Promise<void>
+    setStudioExteriorFront: (v: StudioExteriorFront) => void
 }
 
 const getSupabaseConfig = () => ({
@@ -136,8 +144,9 @@ export const useEngineStore = create<EngineState>((set) => ({
     activeFloor: null,
     selectedUnit: null,
     hoveredUnit: null,
+    studioSidebarHoveredUnitId: null,
     viewMode: 'exterior',
-    lightingMode: 'golden',
+    lightingMode: 'morning',
     notification: null,
     unitStatuses: {},
     unitAllocationNames: {},
@@ -166,17 +175,20 @@ export const useEngineStore = create<EngineState>((set) => ({
     orbitBookmarkBeforePadEdit: null,
     worldPreviewActive: false,
     previewWorldEnvironmentId: null,
+    studioExteriorFront: 'auto',
 
     setBuilding: (id) =>
         set({
             buildingId: id,
             activeFloor: null,
             selectedUnit: null,
+            studioSidebarHoveredUnitId: null,
             viewMode: 'exterior',
             worldPreviewActive: false,
             previewWorldEnvironmentId: null,
             selectedSkyboxSlotId: null,
             selectedCatalogCollectionId: null,
+            studioExteriorFront: 'auto',
         }),
 
     fetchBuilding: async (id) => {
@@ -221,6 +233,8 @@ export const useEngineStore = create<EngineState>((set) => ({
                       )
                     : null;
             const placementPad = fromBuilding ?? fromWorldTemplate ?? null;
+            const studioExteriorFront =
+                parseStudioExteriorFront(building?.ground_placement_pad) ?? 'auto';
             if (myEpoch !== engineLoadEpoch) return;
             set({
                 building,
@@ -235,6 +249,7 @@ export const useEngineStore = create<EngineState>((set) => ({
                 padMarqueeScreen: null,
                 placementPadSceneDefaultPending: false,
                 orbitBookmarkBeforePadEdit: null,
+                studioExteriorFront,
             });
         } catch {
             if (myEpoch !== engineLoadEpoch) return;
@@ -404,6 +419,7 @@ export const useEngineStore = create<EngineState>((set) => ({
     setActiveFloor: (id) => set({ activeFloor: id }),
     setSelectedUnit: (id) => set({ selectedUnit: id }),
     setHoveredUnit: (id) => set({ hoveredUnit: id }),
+    setStudioSidebarHoveredUnitId: (id) => set({ studioSidebarHoveredUnitId: id }),
     setViewMode: (mode) => set({ viewMode: mode }),
     setLightingMode: (mode) => set({ lightingMode: mode }),
     setUnitStatus: (id, st) => set((s) => ({ unitStatuses: { ...s.unitStatuses, [id]: st } })),
@@ -481,6 +497,7 @@ export const useEngineStore = create<EngineState>((set) => ({
         const token = useAuthStore.getState().session?.access_token;
         if (!token || !pad) return false;
 
+        const studioExteriorFront = useEngineStore.getState().studioExteriorFront;
         const patchPayload = {
             center: pad.center,
             halfExtents: pad.halfExtents,
@@ -496,12 +513,17 @@ export const useEngineStore = create<EngineState>((set) => ({
             Math.abs(pad.padVerticalOffsetM) > 1e-6
                 ? { padVerticalOffsetM: pad.padVerticalOffsetM }
                 : {}),
+            studioExteriorFront,
         };
 
         if (useEngineStore.getState().worldPreviewActive) {
             const wid = useEngineStore.getState().previewWorldEnvironmentId;
             if (!wid) return false;
-            const ok = await patchWorldEnvironmentGroundPad(wid, pad, () => token);
+            const ok = await patchWorldEnvironmentGroundPad(
+                wid,
+                { ...pad, studioExteriorFront },
+                () => token,
+            );
             if (!ok) return false;
             set((st) => ({
                 buildingWorldEnvironment: st.buildingWorldEnvironment
@@ -627,6 +649,10 @@ export const useEngineStore = create<EngineState>((set) => ({
                 (row as { ground_placement_pad?: unknown }).ground_placement_pad
             );
             if (myEpoch !== engineLoadEpoch) return;
+            const studioExteriorFront =
+                parseStudioExteriorFront(
+                    (row as { ground_placement_pad?: unknown }).ground_placement_pad,
+                ) ?? 'auto';
             set((st) => ({
                 building: null,
                 units: [],
@@ -641,6 +667,7 @@ export const useEngineStore = create<EngineState>((set) => ({
                 selectedSkyboxUrl: null,
                 selectedSkyboxSlotId: null,
                 selectedCatalogCollectionId: null,
+                studioExteriorFront,
                 worldEnvironments: [row, ...st.worldEnvironments.filter((w) => w.id !== row.id)],
             }));
         } finally {
@@ -658,8 +685,9 @@ export const useEngineStore = create<EngineState>((set) => ({
             activeFloor: null,
             selectedUnit: null,
             hoveredUnit: null,
+            studioSidebarHoveredUnitId: null,
             viewMode: 'exterior',
-            lightingMode: 'golden',
+            lightingMode: 'morning',
             notification: null,
             unitStatuses: {},
             unitAllocationNames: {},
@@ -688,6 +716,42 @@ export const useEngineStore = create<EngineState>((set) => ({
             orbitBookmarkBeforePadEdit: null,
             worldPreviewActive: false,
             previewWorldEnvironmentId: null,
+            studioExteriorFront: 'auto',
+        });
+    },
+
+    setStudioExteriorFront: (v) => {
+        set({ studioExteriorFront: v });
+        queueMicrotask(async () => {
+            const st = useEngineStore.getState();
+            if (st.worldPreviewActive || !st.buildingId || !st.building) return;
+            const token = useAuthStore.getState().session?.access_token;
+            if (!token || useAuthStore.getState().profile?.role !== 'admin') return;
+            const { url, key } = getSupabaseConfig();
+            if (!url || !key) return;
+            const raw = st.building.ground_placement_pad;
+            const base =
+                typeof raw === 'object' && raw !== null && !Array.isArray(raw)
+                    ? { ...(raw as Record<string, unknown>) }
+                    : {};
+            const merged = { ...base, studioExteriorFront: st.studioExteriorFront };
+            const res = await fetch(`${url}/rest/v1/buildings?id=eq.${st.buildingId}`, {
+                method: 'PATCH',
+                headers: {
+                    apikey: key,
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=minimal',
+                },
+                body: JSON.stringify({ ground_placement_pad: merged }),
+            });
+            if (!res.ok) {
+                set({ notification: 'Could not save exterior front preference.' });
+                return;
+            }
+            set((s) => ({
+                building: s.building ? { ...s.building, ground_placement_pad: merged } : null,
+            }));
         });
     },
 }))

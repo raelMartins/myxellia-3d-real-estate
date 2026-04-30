@@ -9,6 +9,8 @@ interface CurrencyInputProps {
     placeholder?: string;
     className?: string;
     required?: boolean;
+    /** Brown studio field styling (prefix color). */
+    studioListingStyle?: boolean;
 }
 
 export function CurrencyInput({
@@ -16,7 +18,8 @@ export function CurrencyInput({
     onChange,
     placeholder = '0',
     className = '',
-    required = false
+    required = false,
+    studioListingStyle = false,
 }: CurrencyInputProps) {
     // Use local state to handle the raw input string
     const [localValue, setLocalValue] = useState<string>('');
@@ -90,7 +93,11 @@ export function CurrencyInput({
             />
 
             {/* Currency Prefix - Always on top */}
-            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[#C6A664] font-medium pointer-events-none select-none z-20">
+            <div
+                className={`absolute left-5 top-1/2 -translate-y-1/2 font-medium pointer-events-none select-none z-20 ${
+                    studioListingStyle ? 'text-[#715852]/75' : 'text-[#C6A664]'
+                }`}
+            >
                 $
             </div>
         </div>
